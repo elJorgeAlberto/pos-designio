@@ -4,6 +4,7 @@ import { LoginForm } from '@/components/LoginForm'
 import { AppLayout } from '@/components/AppLayout'
 import { Home } from '@/pages/Home'
 import { ProductsPage } from '@/pages/ProductsPage'
+import { SalesPage } from '@/pages/SalesPage'
 
 function App() {
   const { session, loading } = useAuth()
@@ -17,6 +18,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/productos" element={<ProductsPage />} />
+          <Route path="/ventas" element={<SalesPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
