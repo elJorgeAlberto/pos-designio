@@ -57,6 +57,15 @@ export const fieldHelp = {
     amount: 'Cuánto se gastó.',
     description: 'Opcional. Detalle breve, ej. "Gasolina camioneta de reparto".',
   },
+  suppliers: {
+    name: 'El nombre con el que vas a identificar a este proveedor.',
+    phone: 'Opcional. Para contactarlo cuando necesites hacer un pedido.',
+    notes: 'Opcional. Qué te surte, condiciones de pago, lo que te sea útil recordar.',
+    paymentAmount: 'Cuánto le estás pagando ahora — puede ser un abono parcial.',
+    purchaseProduct: 'Qué producto estás comprando — su existencia sube al confirmar la compra.',
+    purchaseQuantity: 'Cuánto estás comprando de este producto.',
+    purchaseCost: 'El costo por unidad en esta compra — actualiza el costo del producto para futuras ventas.',
+  },
   ticketSettings: {
     logo: 'El logo que aparece arriba del ticket. Se recomienda una imagen cuadrada.',
     message: 'Texto que aparece al final del ticket — un agradecimiento, tus condiciones de crédito, lo que quieras.',

@@ -735,6 +735,94 @@ export type Database = {
           },
         ]
       }
+      purchase_items: {
+        Row: {
+          id: string
+          product_id: string
+          purchase_id: string
+          quantity: number
+          unit_cost: number
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          purchase_id: string
+          quantity: number
+          unit_cost: number
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          purchase_id?: string
+          quantity?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchases: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          supplier_id: string
+          total: number
+          user_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          supplier_id: string
+          total?: number
+          user_id?: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          supplier_id?: string
+          total?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchases_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchases_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           permission_id: string
@@ -970,6 +1058,96 @@ export type Database = {
           id?: string
         }
         Relationships: []
+      }
+      supplier_payments: {
+        Row: {
+          amount: number
+          cash_register_session_id: string | null
+          created_at: string
+          id: string
+          method: string
+          purchase_id: string | null
+          supplier_id: string
+        }
+        Insert: {
+          amount: number
+          cash_register_session_id?: string | null
+          created_at?: string
+          id?: string
+          method: string
+          purchase_id?: string | null
+          supplier_id: string
+        }
+        Update: {
+          amount?: number
+          cash_register_session_id?: string | null
+          created_at?: string
+          id?: string
+          method?: string
+          purchase_id?: string | null
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_payments_cash_register_session_id_fkey"
+            columns: ["cash_register_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_register_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_payments_purchase_id_fkey"
+            columns: ["purchase_id"]
+            isOneToOne: false
+            referencedRelation: "purchases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_payments_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          active: boolean
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+        }
+        Insert: {
+          active?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Update: {
+          active?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ticket_settings: {
         Row: {

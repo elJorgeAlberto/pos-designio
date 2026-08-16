@@ -56,6 +56,7 @@ export function Home() {
   const [methodTotals, setMethodTotals] = useState<Record<string, number>>({})
   const [receivableRows, setReceivableRows] = useState<ReceivableRow[]>([])
   const [expensesTotal, setExpensesTotal] = useState(0)
+  const [payablesTotal, setPayablesTotal] = useState(0)
   const [openDetail, setOpenDetail] = useState<Detail>(null)
 
   const days = periods.find((p) => p.key === period)!.days
@@ -170,6 +171,15 @@ export function Home() {
       .then(({ data }) => {
         setExpensesTotal((data ?? []).reduce((sum, e) => sum + e.amount, 0))
       })
+
+    Promise.all([
+      supabase.from('purchases').select('total'),
+      supabase.from('supplier_payments').select('amount'),
+    ]).then(([{ data: purchaseRows }, { data: paymentRows }]) => {
+      const totalPurchased = (purchaseRows ?? []).reduce((sum, p) => sum + p.total, 0)
+      const totalPaid = (paymentRows ?? []).reduce((sum, p) => sum + p.amount, 0)
+      setPayablesTotal(Math.max(0, totalPurchased - totalPaid))
+    })
   }
 
   useEffect(() => {
@@ -281,6 +291,14 @@ export function Home() {
             value={expensesTotal}
             deltaGoodDirection="down"
             onClick={() => navigate('/gastos')}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Cuentas por pagar"
+            value={payablesTotal}
+            deltaGoodDirection="down"
+            onClick={() => navigate('/proveedores')}
           />
         </div>
       </div>
