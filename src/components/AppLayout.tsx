@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
+import { QuickActionsFab } from '@/components/QuickActionsFab'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -128,6 +129,7 @@ export function AppLayout() {
       <main className="flex-1 p-4">
         <Outlet />
       </main>
+      <QuickActionsFab />
       <footer
         className="border-t border-border py-4 text-center text-xs text-muted-foreground"
         style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}

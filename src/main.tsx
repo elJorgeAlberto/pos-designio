@@ -10,7 +10,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <TooltipProvider>
       <AuthProvider>
-        <Toaster position="top-right" />
+        <Toaster position="top-center" />
         <App />
       </AuthProvider>
     </TooltipProvider>

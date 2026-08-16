@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { sileo } from 'sileo'
 import { Plus, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -55,7 +56,8 @@ type CreditSale = {
 export function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
-  const [newOpen, setNewOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [newOpen, setNewOpen] = useState(searchParams.get('new') === '1')
   const [name, setName] = useState('')
   const [creditLimit, setCreditLimit] = useState('')
   const [address, setAddress] = useState('')
@@ -111,6 +113,8 @@ export function ClientsPage() {
 
   useEffect(() => {
     loadClients()
+    if (searchParams.get('new') === '1') setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function useMyLocation() {

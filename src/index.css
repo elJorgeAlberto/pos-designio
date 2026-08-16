@@ -156,6 +156,14 @@
   }
 }
 
+/* Sileo's toast viewport ships at z-index:50 — tied with our Sheet
+   overlay/content, so a sheet opening right after a toast fires (e.g.
+   the ticket sheet after a sale) wins the tie and covers it. Toasts
+   should always render above everything else. */
+[data-sileo-viewport] {
+  z-index: 100 !important;
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
