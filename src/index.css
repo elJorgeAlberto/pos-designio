@@ -146,6 +146,10 @@
   html {
     @apply font-sans;
   }
+  html,
+  body {
+    overscroll-behavior-x: none;
+  }
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;

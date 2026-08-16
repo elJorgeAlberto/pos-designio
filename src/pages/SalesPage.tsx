@@ -353,7 +353,8 @@ export function SalesPage() {
                   <Button
                     type="button"
                     variant="secondary"
-                    size="icon-sm"
+                    size="icon"
+                    className="size-11 shrink-0"
                     onClick={() =>
                       updateQuantity(
                         line.product.id,
@@ -364,7 +365,7 @@ export function SalesPage() {
                     <Minus />
                   </Button>
                   <Input
-                    className="w-16 text-center"
+                    className="h-11 w-16 shrink-0 text-center"
                     type="number"
                     step={line.product.sale_type === 'weight' ? '0.001' : '1'}
                     value={line.quantity}
@@ -373,7 +374,8 @@ export function SalesPage() {
                   <Button
                     type="button"
                     variant="secondary"
-                    size="icon-sm"
+                    size="icon"
+                    className="size-11 shrink-0"
                     onClick={() =>
                       updateQuantity(
                         line.product.id,
@@ -386,7 +388,8 @@ export function SalesPage() {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
+                    className="size-11 shrink-0"
                     onClick={() => updateQuantity(line.product.id, 0)}
                   >
                     <Trash2 className="text-destructive" />
@@ -457,9 +460,25 @@ export function SalesPage() {
             </div>
             {payments.map((payment, index) => (
               <div key={payment.id} className="flex flex-col gap-2 border-b border-border pb-4">
-                <FieldLabel htmlFor={`method-${payment.id}`} help={fieldHelp.sales.paymentMethod}>
-                  Método de pago
-                </FieldLabel>
+                <div className="flex items-center justify-between">
+                  <FieldLabel htmlFor={`method-${payment.id}`} help={fieldHelp.sales.paymentMethod}>
+                    Método de pago
+                  </FieldLabel>
+                  {payments.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      aria-label="Quitar método de pago"
+                      onClick={() =>
+                        setPayments((prev) => prev.filter((_, i) => i !== index))
+                      }
+                    >
+                      <Trash2 className="text-destructive" />
+                    </Button>
+                  )}
+                </div>
                 <Select
                   value={payment.method}
                   onValueChange={(v) =>

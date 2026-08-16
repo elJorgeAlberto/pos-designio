@@ -1,0 +1,12 @@
+{
+  "name": "POS Designio",
+  "short_name": "POS Designio",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f5fc",
+  "theme_color": "#f07f2b",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
