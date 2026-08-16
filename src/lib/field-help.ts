@@ -21,6 +21,7 @@ export const fieldHelp = {
     quantity: 'Cuánto está llevando el cliente de este producto — piezas o kilos, según el producto.',
     paymentMethod: 'Cómo está pagando el cliente esta parte del total.',
     paymentAmount: 'El monto que cubre este método de pago. Puedes dividir el total entre varios métodos.',
+    discount: 'Cuánto le vas a rebajar al total de esta venta. Se descuenta del total antes de cobrar.',
   },
   cashRegister: {
     openingAmount: 'El efectivo con el que arranca la caja — el fondo que dejas antes de la primera venta del turno.',

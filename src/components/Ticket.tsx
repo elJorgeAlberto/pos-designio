@@ -19,9 +19,11 @@ export const Ticket = forwardRef<
     date: Date
     items: TicketItem[]
     payments: TicketPayment[]
+    subtotal: number
+    discount: number
     total: number
   }
->(({ companyName, logoUrl, message, date, items, payments, total }, ref) => {
+>(({ companyName, logoUrl, message, date, items, payments, subtotal, discount, total }, ref) => {
   return (
     <div
       ref={ref}
@@ -45,6 +47,18 @@ export const Ticket = forwardRef<
           </div>
         ))}
       </div>
+      {discount > 0 && (
+        <div className="flex flex-col gap-1 text-sm text-smoke">
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Descuento</span>
+            <span>-${discount.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
       <div
         style={{ fontFamily: 'var(--font-display)' }}
         className="flex justify-between text-2xl text-azafran"

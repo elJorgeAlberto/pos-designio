@@ -8,12 +8,14 @@ type Profile = {
   companyName: string
   roleName: string | null
   branchNames: string[]
+  permissionKeys: string[]
 }
 
 type AuthContextValue = {
   session: Session | null
   profile: Profile | null
   loading: boolean
+  hasPermission: (key: string) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -22,7 +24,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('users')
     .select(
-      'id, company_id, company:companies(name), role:roles(name), user_branches(branch:branches(name))',
+      'id, company_id, company:companies(name), role:roles(name, role_permissions(permission:permissions(key))), user_branches(branch:branches(name))',
     )
     .eq('id', userId)
     .single()
@@ -40,6 +42,11 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
     branchNames: data.user_branches
       .map((ub) => (Array.isArray(ub.branch) ? ub.branch[0]?.name : ub.branch?.name))
       .filter((name): name is string => Boolean(name)),
+    permissionKeys: (
+      (role?.role_permissions ?? []) as { permission: { key: string } | { key: string }[] | null }[]
+    )
+      .map((rp) => (Array.isArray(rp.permission) ? rp.permission[0]?.key : rp.permission?.key))
+      .filter((key): key is string => Boolean(key)),
   }
 }
 
@@ -74,8 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }, [session])
 
+  function hasPermission(key: string) {
+    return profile?.permissionKeys.includes(key) ?? false
+  }
+
   return (
-    <AuthContext.Provider value={{ session, profile, loading }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ session, profile, loading, hasPermission }}>
+      {children}
+    </AuthContext.Provider>
   )
 }
 

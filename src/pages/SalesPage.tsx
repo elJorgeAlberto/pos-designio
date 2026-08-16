@@ -71,6 +71,7 @@ export function SalesPage() {
   const [submitting, setSubmitting] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [clientId, setClientId] = useState<string>('')
+  const [discount, setDiscount] = useState('')
   const [ticketSettings, setTicketSettings] = useState<{ logoUrl: string | null; message: string | null }>({
     logoUrl: null,
     message: null,
@@ -79,6 +80,8 @@ export function SalesPage() {
     date: Date
     items: { name: string; quantity: number; unit: string; unitPrice: number }[]
     payments: { method: string; amount: number }[]
+    subtotal: number
+    discount: number
     total: number
   } | null>(null)
   const ticketRef = useRef<HTMLDivElement>(null)
@@ -89,11 +92,13 @@ export function SalesPage() {
     () => cart.reduce((sum, line) => sum + line.quantity * line.product.price, 0),
     [cart],
   )
+  const discountAmount = Math.min(Number(discount) || 0, total)
+  const amountDue = total - discountAmount
   const paid = useMemo(
     () => payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
     [payments],
   )
-  const remaining = Math.round((total - paid) * 100) / 100
+  const remaining = Math.round((amountDue - paid) * 100) / 100
 
   useEffect(() => {
     supabase
@@ -169,6 +174,7 @@ export function SalesPage() {
       return
     }
     setClientId('')
+    setDiscount('')
     setPayments([{ id: crypto.randomUUID(), method: 'cash', amount: total.toFixed(2), commitmentDate: '' }])
     setCheckoutOpen(true)
   }
@@ -208,6 +214,7 @@ export function SalesPage() {
         cash_register_id: cashRegisterId,
         cash_register_session_id: sessionId,
         client_id: clientId || null,
+        discount_amount: discountAmount,
       })
       .select('id')
       .single()
@@ -249,7 +256,7 @@ export function SalesPage() {
       return
     }
 
-    sileo.success({ title: `Venta registrada por $${total.toFixed(2)}` })
+    sileo.success({ title: `Venta registrada por $${amountDue.toFixed(2)}` })
     setLastSale({
       date: new Date(),
       items: cart.map((line) => ({
@@ -259,11 +266,14 @@ export function SalesPage() {
         unitPrice: line.product.price,
       })),
       payments: payments.map((p) => ({ method: p.method, amount: Number(p.amount) || 0 })),
-      total,
+      subtotal: total,
+      discount: discountAmount,
+      total: amountDue,
     })
     setCart([])
     setPayments([])
     setClientId('')
+    setDiscount('')
     setCheckoutOpen(false)
     setSubmitting(false)
   }
@@ -399,9 +409,30 @@ export function SalesPage() {
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Cobrar</SheetTitle>
-            <SheetDescription>Total a pagar: ${total.toFixed(2)}</SheetDescription>
+            <SheetDescription>
+              {discountAmount > 0 ? (
+                <>
+                  Subtotal: ${total.toFixed(2)} · Descuento: -${discountAmount.toFixed(2)} · Total a
+                  pagar: ${amountDue.toFixed(2)}
+                </>
+              ) : (
+                <>Total a pagar: ${amountDue.toFixed(2)}</>
+              )}
+            </SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 overflow-y-auto px-4">
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="sale-discount" help={fieldHelp.sales.discount}>
+                Descuento
+              </FieldLabel>
+              <Input
+                id="sale-discount"
+                type="number"
+                step="0.01"
+                value={discount}
+                onChange={(e) => setDiscount(e.target.value)}
+              />
+            </div>
             <div className="flex flex-col gap-2">
               <FieldLabel htmlFor="sale-client" help={fieldHelp.salesClient.client}>
                 Cliente
@@ -553,6 +584,8 @@ export function SalesPage() {
                 date={lastSale.date}
                 items={lastSale.items}
                 payments={lastSale.payments}
+                subtotal={lastSale.subtotal}
+                discount={lastSale.discount}
                 total={lastSale.total}
               />
             </div>

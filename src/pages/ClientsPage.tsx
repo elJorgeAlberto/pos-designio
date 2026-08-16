@@ -83,6 +83,7 @@ export function ClientsPage() {
       .from('sales')
       .select('client_id, sale_payments(method, amount)')
       .not('client_id', 'is', null)
+      .is('voided_at', null)
 
     const { data: collections } = await supabase.from('collections').select('client_id, amount')
 
@@ -165,6 +166,7 @@ export function ClientsPage() {
       .from('sales')
       .select('id, created_at, sale_payments(method, amount, commitment_date)')
       .eq('client_id', client.id)
+      .is('voided_at', null)
 
     const { data: collections } = await supabase
       .from('collections')

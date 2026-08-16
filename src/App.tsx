@@ -8,6 +8,7 @@ import { SalesPage } from '@/pages/SalesPage'
 import { CashRegisterPage } from '@/pages/CashRegisterPage'
 import { ClientsPage } from '@/pages/ClientsPage'
 import { TicketSettingsPage } from '@/pages/TicketSettingsPage'
+import { SalesHistoryPage } from '@/pages/SalesHistoryPage'
 
 function App() {
   const { session, loading } = useAuth()
@@ -25,6 +26,7 @@ function App() {
           <Route path="/caja" element={<CashRegisterPage />} />
           <Route path="/clientes" element={<ClientsPage />} />
           <Route path="/ticket" element={<TicketSettingsPage />} />
+          <Route path="/historial" element={<SalesHistoryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

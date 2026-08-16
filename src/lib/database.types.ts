@@ -598,9 +598,12 @@ export type Database = {
           cash_register_session_id: string | null
           client_id: string | null
           created_at: string
+          discount_amount: number
           id: string
           total: number
           user_id: string
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
           branch_id: string
@@ -608,9 +611,12 @@ export type Database = {
           cash_register_session_id?: string | null
           client_id?: string | null
           created_at?: string
+          discount_amount?: number
           id?: string
           total?: number
           user_id?: string
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
           branch_id?: string
@@ -618,9 +624,12 @@ export type Database = {
           cash_register_session_id?: string | null
           client_id?: string | null
           created_at?: string
+          discount_amount?: number
           id?: string
           total?: number
           user_id?: string
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -654,6 +663,13 @@ export type Database = {
           {
             foreignKeyName: "sales_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_voided_by_fkey"
+            columns: ["voided_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -779,6 +795,7 @@ export type Database = {
     }
     Functions: {
       current_company_id: { Args: never; Returns: string }
+      has_permission: { Args: { permission_key: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
     }
     Enums: {
