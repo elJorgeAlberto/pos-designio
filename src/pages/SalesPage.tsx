@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { sileo } from 'sileo'
-import html2canvas from 'html2canvas'
 import { Minus, Plus, Trash2, ShoppingCart, Share2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 import { useBranchContext } from '@/lib/use-branch-context'
+import { useShareImage } from '@/lib/use-share-image'
 import { Ticket } from '@/components/Ticket'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -84,7 +84,7 @@ export function SalesPage() {
     discount: number
     total: number
   } | null>(null)
-  const ticketRef = useRef<HTMLDivElement>(null)
+  const { ref: ticketRef, shareImage } = useShareImage()
 
   const hasCredit = payments.some((p) => p.method === 'credit')
 
@@ -276,24 +276,6 @@ export function SalesPage() {
     setDiscount('')
     setCheckoutOpen(false)
     setSubmitting(false)
-  }
-
-  async function shareTicket() {
-    if (!ticketRef.current) return
-    const canvas = await html2canvas(ticketRef.current, { backgroundColor: '#ffffff' })
-    canvas.toBlob(async (blob) => {
-      if (!blob) return
-      const file = new File([blob], 'ticket.png', { type: 'image/png' })
-      if (navigator.canShare?.({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: 'Ticket' })
-        } catch {
-          // user cancelled the share sheet — not an error
-        }
-      } else {
-        sileo.info({ title: 'Mantén presionada la imagen del ticket para guardarla.' })
-      }
-    })
   }
 
   return (
@@ -610,7 +592,7 @@ export function SalesPage() {
             </div>
           )}
           <SheetFooter>
-            <Button onClick={shareTicket}>
+            <Button onClick={() => shareImage('ticket.png', 'Ticket')}>
               <Share2 /> Compartir ticket
             </Button>
           </SheetFooter>

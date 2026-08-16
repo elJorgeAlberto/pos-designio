@@ -67,7 +67,7 @@ export function Home() {
     return d
   }, [periodStart, days])
 
-  useEffect(() => {
+  function loadData() {
     setLoading(true)
     supabase
       .from('sales')
@@ -137,45 +137,33 @@ export function Home() {
       })
 
     supabase
-      .from('sales')
-      .select('client_id, client:clients(name), sale_payments(method, amount, commitment_date)')
-      .not('client_id', 'is', null)
-      .is('voided_at', null)
-      .then(async ({ data: creditSales }) => {
-        const { data: collections } = await supabase.from('collections').select('client_id, amount')
-        const collectedByClient = new Map<string, number>()
-        for (const c of collections ?? []) {
-          collectedByClient.set(c.client_id, (collectedByClient.get(c.client_id) ?? 0) + c.amount)
-        }
-
-        const owedByClient = new Map<string, { name: string; owed: number; overdue: boolean }>()
+      .from('debt_commitments')
+      .select('client_id, amount, due_date, client:clients(name)')
+      .eq('status', 'pending')
+      .then(({ data }) => {
         const today = new Date()
-        for (const s of creditSales ?? []) {
-          if (!s.client_id) continue
-          const client = Array.isArray(s.client) ? s.client[0] : s.client
-          const entry = owedByClient.get(s.client_id) ?? {
-            name: client?.name ?? '—',
-            owed: 0,
-            overdue: false,
-          }
-          for (const p of s.sale_payments) {
-            if (p.method !== 'credit') continue
-            entry.owed += p.amount
-            if (p.commitment_date && parseLocalDate(p.commitment_date) < today) entry.overdue = true
-          }
-          owedByClient.set(s.client_id, entry)
+        const byClient = new Map<string, { name: string; balance: number; overdue: boolean }>()
+        for (const c of data ?? []) {
+          const client = Array.isArray(c.client) ? c.client[0] : c.client
+          const entry = byClient.get(c.client_id) ?? { name: client?.name ?? '—', balance: 0, overdue: false }
+          entry.balance += c.amount
+          if (c.due_date && parseLocalDate(c.due_date) < today) entry.overdue = true
+          byClient.set(c.client_id, entry)
         }
-
-        const rows: ReceivableRow[] = [...owedByClient.entries()]
-          .map(([clientId, entry]) => ({
+        setReceivableRows(
+          [...byClient.entries()].map(([clientId, entry]) => ({
             clientId,
             name: entry.name,
-            balance: entry.owed - (collectedByClient.get(clientId) ?? 0),
+            balance: entry.balance,
             overdue: entry.overdue,
-          }))
-          .filter((r) => r.balance > 0.01)
-        setReceivableRows(rows)
+          })),
+        )
       })
+  }
+
+  useEffect(() => {
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodStart, previousPeriodStart])
 
   const currentTotal = salesDetail.reduce((sum, s) => sum + (s.total - s.discount), 0)
@@ -319,6 +307,7 @@ export function Home() {
         onOpenChange={(o) => setOpenDetail(o ? 'sales' : null)}
         title="Ventas del periodo"
         sales={salesDetail}
+        onVoided={loadData}
       />
       <ReceivablesDrawer
         open={openDetail === 'receivables'}

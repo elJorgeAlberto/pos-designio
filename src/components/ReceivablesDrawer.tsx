@@ -43,7 +43,7 @@ export function ReceivablesDrawer({
                 <button
                   key={c.clientId}
                   type="button"
-                  onClick={() => navigate('/clientes')}
+                  onClick={() => navigate('/cobros')}
                   className="flex items-center justify-between border-b border-border py-3 text-left text-sm hover:bg-accent/30"
                 >
                   <span>{c.name}</span>

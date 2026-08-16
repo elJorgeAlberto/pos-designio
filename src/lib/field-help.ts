@@ -36,6 +36,7 @@ export const fieldHelp = {
   collections: {
     sale: 'A cuál venta a crédito de este cliente le estás aplicando el pago.',
     amount: 'Cuánto está pagando el cliente ahora — puede ser un abono parcial, no hace falta que liquide todo.',
+    newDueDate: 'La nueva fecha en la que el cliente se compromete a pagar lo que quedó pendiente.',
   },
   salesClient: {
     client: 'Opcional. Solo hace falta si vas a cobrar una parte de esta venta a crédito.',

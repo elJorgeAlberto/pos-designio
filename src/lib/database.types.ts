@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.15"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       audit_log: {
@@ -189,6 +214,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          active: boolean
           address: string | null
           company_id: string
           created_at: string
@@ -199,6 +225,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          active?: boolean
           address?: string | null
           company_id?: string
           created_at?: string
@@ -209,6 +236,7 @@ export type Database = {
           name: string
         }
         Update: {
+          active?: boolean
           address?: string | null
           company_id?: string
           created_at?: string
@@ -233,6 +261,7 @@ export type Database = {
           amount: number
           client_id: string
           created_at: string
+          debt_commitment_id: string | null
           id: string
           sale_id: string
         }
@@ -240,6 +269,7 @@ export type Database = {
           amount: number
           client_id: string
           created_at?: string
+          debt_commitment_id?: string | null
           id?: string
           sale_id: string
         }
@@ -247,6 +277,7 @@ export type Database = {
           amount?: number
           client_id?: string
           created_at?: string
+          debt_commitment_id?: string | null
           id?: string
           sale_id?: string
         }
@@ -256,6 +287,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collections_debt_commitment_id_fkey"
+            columns: ["debt_commitment_id"]
+            isOneToOne: false
+            referencedRelation: "debt_commitments"
             referencedColumns: ["id"]
           },
           {
@@ -298,6 +336,64 @@ export type Database = {
             columns: ["business_type_id"]
             isOneToOne: false
             referencedRelation: "business_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      debt_commitments: {
+        Row: {
+          amount: number
+          client_id: string
+          created_at: string
+          due_date: string | null
+          id: string
+          parent_commitment_id: string | null
+          resolved_at: string | null
+          sale_id: string
+          status: string
+        }
+        Insert: {
+          amount: number
+          client_id: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          parent_commitment_id?: string | null
+          resolved_at?: string | null
+          sale_id: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          client_id?: string
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          parent_commitment_id?: string | null
+          resolved_at?: string | null
+          sale_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debt_commitments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debt_commitments_parent_commitment_id_fkey"
+            columns: ["parent_commitment_id"]
+            isOneToOne: false
+            referencedRelation: "debt_commitments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debt_commitments_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
             referencedColumns: ["id"]
           },
         ]
@@ -794,6 +890,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      collect_debt: {
+        Args: {
+          p_amount: number
+          p_authorize_remainder?: boolean
+          p_commitment_id: string
+          p_new_due_date?: string
+        }
+        Returns: {
+          amount: number
+          client_id: string
+          created_at: string
+          due_date: string | null
+          id: string
+          parent_commitment_id: string | null
+          resolved_at: string | null
+          sale_id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "debt_commitments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       current_company_id: { Args: never; Returns: string }
       has_permission: { Args: { permission_key: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
@@ -925,6 +1046,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

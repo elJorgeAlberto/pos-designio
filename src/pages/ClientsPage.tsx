@@ -1,7 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { sileo } from 'sileo'
-import { Plus, MapPin } from 'lucide-react'
+import { Plus, MapPin, Pencil, Archive, ArchiveRestore } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { parseLocalDate } from '@/lib/dates'
 import { Button } from '@/components/ui/button'
@@ -9,14 +9,8 @@ import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/FieldLabel'
 import { fieldHelp } from '@/lib/field-help'
 import { ClientLocationMap } from '@/components/ClientLocationMap'
+import { CollectDebtSheet, type DebtCommitment } from '@/components/CollectDebtSheet'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -24,7 +18,6 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet'
 import {
   Table,
@@ -42,22 +35,24 @@ type Client = {
   address: string | null
   latitude: number | null
   longitude: number | null
+  active: boolean
   balance: number
+  nextDueDate: string | null
+  overdue: boolean
 }
 
-type CreditSale = {
-  sale_id: string
-  created_at: string
-  commitment_date: string | null
-  credit_amount: number
-  collected: number
-}
+type StatusFilter = 'all' | 'debt' | 'overdue'
 
 export function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
-  const [newOpen, setNewOpen] = useState(searchParams.get('new') === '1')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [showInactive, setShowInactive] = useState(false)
+
+  const [formOpen, setFormOpen] = useState(searchParams.get('new') === '1')
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [creditLimit, setCreditLimit] = useState('')
   const [address, setAddress] = useState('')
@@ -66,46 +61,45 @@ export function ClientsPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [detailClient, setDetailClient] = useState<Client | null>(null)
-  const [creditSales, setCreditSales] = useState<CreditSale[]>([])
-  const [collectSaleId, setCollectSaleId] = useState('')
-  const [collectAmount, setCollectAmount] = useState('')
+  const [detailCommitments, setDetailCommitments] = useState<DebtCommitment[]>([])
+  const [confirmingDeactivate, setConfirmingDeactivate] = useState(false)
+  const [collectTarget, setCollectTarget] = useState<DebtCommitment | null>(null)
 
   async function loadClients() {
     setLoading(true)
     const { data: clientRows, error } = await supabase
       .from('clients')
-      .select('id, name, credit_limit, address, latitude, longitude')
+      .select('id, name, credit_limit, address, latitude, longitude, active')
     if (error || !clientRows) {
       sileo.error({ title: 'No se pudieron cargar los clientes.' })
       setLoading(false)
       return
     }
 
-    const { data: sales } = await supabase
-      .from('sales')
-      .select('client_id, sale_payments(method, amount)')
-      .not('client_id', 'is', null)
-      .is('voided_at', null)
+    const { data: commitments } = await supabase
+      .from('debt_commitments')
+      .select('client_id, amount, due_date')
+      .eq('status', 'pending')
 
-    const { data: collections } = await supabase.from('collections').select('client_id, amount')
-
-    const owedByClient = new Map<string, number>()
-    for (const sale of sales ?? []) {
-      if (!sale.client_id) continue
-      const credit = sale.sale_payments
-        .filter((p) => p.method === 'credit')
-        .reduce((sum, p) => sum + p.amount, 0)
-      owedByClient.set(sale.client_id, (owedByClient.get(sale.client_id) ?? 0) + credit)
-    }
-    const collectedByClient = new Map<string, number>()
-    for (const c of collections ?? []) {
-      collectedByClient.set(c.client_id, (collectedByClient.get(c.client_id) ?? 0) + c.amount)
+    const balanceByClient = new Map<string, number>()
+    const nextDueByClient = new Map<string, string>()
+    const overdueByClient = new Set<string>()
+    const today = new Date()
+    for (const c of commitments ?? []) {
+      balanceByClient.set(c.client_id, (balanceByClient.get(c.client_id) ?? 0) + c.amount)
+      if (c.due_date) {
+        const current = nextDueByClient.get(c.client_id)
+        if (!current || c.due_date < current) nextDueByClient.set(c.client_id, c.due_date)
+        if (parseLocalDate(c.due_date) < today) overdueByClient.add(c.client_id)
+      }
     }
 
     setClients(
       clientRows.map((c) => ({
         ...c,
-        balance: (owedByClient.get(c.id) ?? 0) - (collectedByClient.get(c.id) ?? 0),
+        balance: balanceByClient.get(c.id) ?? 0,
+        nextDueDate: nextDueByClient.get(c.id) ?? null,
+        overdue: overdueByClient.has(c.id),
       })),
     )
     setLoading(false)
@@ -116,6 +110,18 @@ export function ClientsPage() {
     if (searchParams.get('new') === '1') setSearchParams({}, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const filteredClients = useMemo(() => {
+    return clients
+      .filter((c) => (showInactive ? true : c.active))
+      .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+      .filter((c) => {
+        if (statusFilter === 'debt') return c.balance > 0.01
+        if (statusFilter === 'overdue') return c.overdue
+        return true
+      })
+      .sort((a, b) => b.balance - a.balance)
+  }, [clients, search, statusFilter, showInactive])
 
   function useMyLocation() {
     if (!navigator.geolocation) {
@@ -135,88 +141,73 @@ export function ClientsPage() {
     )
   }
 
-  async function handleCreate(event: FormEvent) {
+  function openCreateForm() {
+    setEditingId(null)
+    setName('')
+    setCreditLimit('')
+    setAddress('')
+    setCoords(null)
+    setFormOpen(true)
+  }
+
+  function openEditForm(client: Client) {
+    setEditingId(client.id)
+    setName(client.name)
+    setCreditLimit(client.credit_limit != null ? String(client.credit_limit) : '')
+    setAddress(client.address ?? '')
+    setCoords(client.latitude != null && client.longitude != null ? { lat: client.latitude, lng: client.longitude } : null)
+    setFormOpen(true)
+  }
+
+  async function handleSubmitForm(event: FormEvent) {
     event.preventDefault()
     setSubmitting(true)
 
-    const { error } = await supabase.from('clients').insert({
+    const payload = {
       name,
       credit_limit: creditLimit ? Number(creditLimit) : null,
       address: address || null,
       latitude: coords?.lat ?? null,
       longitude: coords?.lng ?? null,
-    })
+    }
+
+    const { error } = editingId
+      ? await supabase.from('clients').update(payload).eq('id', editingId)
+      : await supabase.from('clients').insert(payload)
 
     if (error) {
       sileo.error({ title: error.message })
     } else {
-      sileo.success({ title: `"${name}" se agregó a tus clientes.` })
-      setName('')
-      setCreditLimit('')
-      setAddress('')
-      setCoords(null)
-      setNewOpen(false)
+      sileo.success({ title: editingId ? `"${name}" se actualizó.` : `"${name}" se agregó a tus clientes.` })
+      setFormOpen(false)
       loadClients()
     }
     setSubmitting(false)
+  }
+
+  async function toggleActive(client: Client, active: boolean) {
+    const { error } = await supabase.from('clients').update({ active }).eq('id', client.id)
+    if (error) {
+      sileo.error({ title: error.message })
+    } else {
+      sileo.success({ title: active ? `"${client.name}" reactivado.` : `"${client.name}" desactivado.` })
+      setConfirmingDeactivate(false)
+      setDetailClient(null)
+      loadClients()
+    }
   }
 
   async function openDetail(client: Client) {
     setDetailClient(client)
-    setCollectSaleId('')
-    setCollectAmount('')
+    setConfirmingDeactivate(false)
 
-    const { data: sales } = await supabase
-      .from('sales')
-      .select('id, created_at, sale_payments(method, amount, commitment_date)')
+    const { data } = await supabase
+      .from('debt_commitments')
+      .select('id, amount, due_date')
       .eq('client_id', client.id)
-      .is('voided_at', null)
-
-    const { data: collections } = await supabase
-      .from('collections')
-      .select('sale_id, amount')
-      .eq('client_id', client.id)
-
-    const collectedBySale = new Map<string, number>()
-    for (const c of collections ?? []) {
-      collectedBySale.set(c.sale_id, (collectedBySale.get(c.sale_id) ?? 0) + c.amount)
-    }
-
-    const rows: CreditSale[] = []
-    for (const sale of sales ?? []) {
-      const creditPayment = sale.sale_payments.find((p) => p.method === 'credit')
-      if (!creditPayment) continue
-      rows.push({
-        sale_id: sale.id,
-        created_at: sale.created_at,
-        commitment_date: creditPayment.commitment_date,
-        credit_amount: creditPayment.amount,
-        collected: collectedBySale.get(sale.id) ?? 0,
-      })
-    }
-    setCreditSales(rows)
-  }
-
-  async function handleCollect() {
-    if (!detailClient || !collectSaleId) return
-    setSubmitting(true)
-
-    const { error } = await supabase.from('collections').insert({
-      client_id: detailClient.id,
-      sale_id: collectSaleId,
-      amount: Number(collectAmount) || 0,
-    })
-
-    if (error) {
-      sileo.error({ title: error.message })
-    } else {
-      sileo.success({ title: 'Cobro registrado.' })
-      openDetail(detailClient)
-      loadClients()
-      setCollectSaleId('')
-      setCollectAmount('')
-    }
-    setSubmitting(false)
+      .eq('status', 'pending')
+      .order('due_date')
+    setDetailCommitments(data ?? [])
   }
 
   return (
@@ -225,72 +216,110 @@ export function ClientsPage() {
         <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
           Clientes
         </h1>
-        <Sheet open={newOpen} onOpenChange={setNewOpen}>
-          <SheetTrigger
-            render={
-              <Button>
-                <Plus /> Nuevo cliente
-              </Button>
-            }
-          />
-          <SheetContent>
-            <SheetHeader>
-              <SheetTitle>Nuevo cliente</SheetTitle>
-              <SheetDescription>Se agrega al directorio de la empresa.</SheetDescription>
-            </SheetHeader>
-            <form id="client-form" onSubmit={handleCreate} className="flex flex-col gap-4 px-4">
-              <div className="flex flex-col gap-2">
-                <FieldLabel htmlFor="client-name" help={fieldHelp.clients.name}>
-                  Nombre
-                </FieldLabel>
-                <Input id="client-name" required value={name} onChange={(e) => setName(e.target.value)} />
-              </div>
-              <div className="flex flex-col gap-2">
-                <FieldLabel htmlFor="credit-limit" help={fieldHelp.clients.creditLimit}>
-                  Límite de crédito
-                </FieldLabel>
-                <Input
-                  id="credit-limit"
-                  type="number"
-                  step="0.01"
-                  value={creditLimit}
-                  onChange={(e) => setCreditLimit(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <FieldLabel htmlFor="client-address" help={fieldHelp.clients.address}>
-                  Dirección
-                </FieldLabel>
-                <Input
-                  id="client-address"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <FieldLabel htmlFor="use-location" help={fieldHelp.clients.location}>
-                  Ubicación
-                </FieldLabel>
-                <Button
-                  id="use-location"
-                  type="button"
-                  variant="secondary"
-                  disabled={locating}
-                  onClick={useMyLocation}
-                >
-                  <MapPin /> {locating ? 'Obteniendo…' : coords ? 'Ubicación capturada' : 'Usar mi ubicación'}
-                </Button>
-                {coords && <ClientLocationMap latitude={coords.lat} longitude={coords.lng} />}
-              </div>
-            </form>
-            <SheetFooter>
-              <Button type="submit" form="client-form" disabled={submitting}>
-                {submitting ? 'Guardando…' : 'Agregar cliente'}
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
+        <Button onClick={openCreateForm}>
+          <Plus /> Nuevo cliente
+        </Button>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="Buscar cliente…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full sm:w-56"
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant={statusFilter === 'debt' ? 'default' : 'secondary'}
+          onClick={() => setStatusFilter(statusFilter === 'debt' ? 'all' : 'debt')}
+        >
+          Ver pendientes
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={statusFilter === 'overdue' ? 'default' : 'secondary'}
+          onClick={() => setStatusFilter(statusFilter === 'overdue' ? 'all' : 'overdue')}
+        >
+          Atrasados
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={showInactive ? 'default' : 'secondary'}
+          onClick={() => setShowInactive((v) => !v)}
+        >
+          Mostrar inactivos
+        </Button>
+      </div>
+
+      <Sheet
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open)
+          if (!open) setEditingId(null)
+        }}
+      >
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>{editingId ? 'Editar cliente' : 'Nuevo cliente'}</SheetTitle>
+            <SheetDescription>
+              {editingId ? 'Actualiza los datos del cliente.' : 'Se agrega al directorio de la empresa.'}
+            </SheetDescription>
+          </SheetHeader>
+          <form id="client-form" onSubmit={handleSubmitForm} className="flex flex-col gap-4 px-4">
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="client-name" help={fieldHelp.clients.name}>
+                Nombre
+              </FieldLabel>
+              <Input id="client-name" required value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="credit-limit" help={fieldHelp.clients.creditLimit}>
+                Límite de crédito
+              </FieldLabel>
+              <Input
+                id="credit-limit"
+                type="number"
+                step="0.01"
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="client-address" help={fieldHelp.clients.address}>
+                Dirección
+              </FieldLabel>
+              <Input
+                id="client-address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="use-location" help={fieldHelp.clients.location}>
+                Ubicación
+              </FieldLabel>
+              <Button
+                id="use-location"
+                type="button"
+                variant="secondary"
+                disabled={locating}
+                onClick={useMyLocation}
+              >
+                <MapPin /> {locating ? 'Obteniendo…' : coords ? 'Ubicación capturada' : 'Usar mi ubicación'}
+              </Button>
+              {coords && <ClientLocationMap latitude={coords.lat} longitude={coords.lng} />}
+            </div>
+          </form>
+          <SheetFooter>
+            <Button type="submit" form="client-form" disabled={submitting}>
+              {submitting ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar cliente'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Card>
         <CardHeader>
@@ -299,30 +328,56 @@ export function ClientsPage() {
         <CardContent>
           {loading ? (
             <p className="text-muted-foreground">Cargando…</p>
-          ) : clients.length === 0 ? (
-            <p className="text-muted-foreground">Todavía no hay clientes.</p>
+          ) : filteredClients.length === 0 ? (
+            <p className="text-muted-foreground">No hay clientes que coincidan.</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
-                  <TableHead>Límite</TableHead>
                   <TableHead>Saldo pendiente</TableHead>
+                  <TableHead>Próximo compromiso</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {clients.map((client) => (
+                {filteredClients.map((client) => (
                   <TableRow
                     key={client.id}
-                    className="cursor-pointer"
+                    className={`cursor-pointer ${!client.active ? 'opacity-50' : ''}`}
                     onClick={() => openDetail(client)}
                   >
                     <TableCell>{client.name}</TableCell>
-                    <TableCell>
-                      {client.credit_limit != null ? `$${client.credit_limit.toFixed(2)}` : '—'}
-                    </TableCell>
                     <TableCell className={client.balance > 0 ? 'text-destructive' : ''}>
                       ${client.balance.toFixed(2)}
+                    </TableCell>
+                    <TableCell>
+                      {client.nextDueDate
+                        ? parseLocalDate(client.nextDueDate).toLocaleDateString('es-MX')
+                        : '—'}
+                    </TableCell>
+                    <TableCell>
+                      {!client.active ? (
+                        <span className="text-muted-foreground">Inactivo</span>
+                      ) : client.overdue ? (
+                        <span className="text-destructive">Atrasado</span>
+                      ) : client.balance > 0.01 ? (
+                        <span className="text-azafran">Pendiente</span>
+                      ) : (
+                        <span className="text-success">Al corriente</span>
+                      )}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Editar cliente"
+                        onClick={() => openEditForm(client)}
+                      >
+                        <Pencil />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -332,7 +387,15 @@ export function ClientsPage() {
         </CardContent>
       </Card>
 
-      <Sheet open={!!detailClient} onOpenChange={(open) => !open && setDetailClient(null)}>
+      <Sheet
+        open={!!detailClient}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailClient(null)
+            setConfirmingDeactivate(false)
+          }
+        }}
+      >
         <SheetContent>
           <SheetHeader>
             <SheetTitle>{detailClient?.name}</SheetTitle>
@@ -345,93 +408,73 @@ export function ClientsPage() {
             {detailClient?.latitude != null && detailClient?.longitude != null && (
               <ClientLocationMap latitude={detailClient.latitude} longitude={detailClient.longitude} />
             )}
-            {creditSales.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin ventas a crédito.</p>
+            {detailCommitments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin deuda pendiente.</p>
             ) : (
-              creditSales.map((sale) => {
-                const remaining = sale.credit_amount - sale.collected
-                const overdue =
-                  remaining > 0.01 &&
-                  sale.commitment_date &&
-                  parseLocalDate(sale.commitment_date) < new Date()
+              detailCommitments.map((commitment) => {
+                const overdue = commitment.due_date && parseLocalDate(commitment.due_date) < new Date()
                 return (
-                  <div key={sale.sale_id} className="border-b border-border pb-2 text-sm">
-                    <div className="flex justify-between">
-                      <span>{new Date(sale.created_at).toLocaleDateString('es-MX')}</span>
-                      <span>${sale.credit_amount.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>
-                        {sale.commitment_date
-                          ? `Compromiso: ${parseLocalDate(sale.commitment_date).toLocaleDateString('es-MX')}`
+                  <div
+                    key={commitment.id}
+                    className="flex items-center justify-between border-b border-border pb-2 text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">${commitment.amount.toFixed(2)}</p>
+                      <p className={overdue ? 'text-destructive' : 'text-muted-foreground'}>
+                        {commitment.due_date
+                          ? `Compromiso: ${parseLocalDate(commitment.due_date).toLocaleDateString('es-MX')}${overdue ? ' (atrasado)' : ''}`
                           : 'Sin fecha de compromiso'}
-                      </span>
-                      <span
-                        className={
-                          remaining <= 0.01
-                            ? 'text-success'
-                            : overdue
-                              ? 'text-destructive'
-                              : ''
-                        }
-                      >
-                        {remaining <= 0.01 ? 'Pagado' : overdue ? 'Atrasado' : `Falta $${remaining.toFixed(2)}`}
-                      </span>
+                      </p>
                     </div>
+                    <Button type="button" size="sm" onClick={() => setCollectTarget(commitment)}>
+                      Cobrar
+                    </Button>
                   </div>
                 )
               })
             )}
-
-            <div className="flex flex-col gap-2 pt-2">
-              <FieldLabel htmlFor="collect-sale" help={fieldHelp.collections.sale}>
-                Registrar cobro
-              </FieldLabel>
-              <Select
-                value={collectSaleId || 'none'}
-                onValueChange={(v) => setCollectSaleId(v === 'none' ? '' : (v ?? ''))}
-              >
-                <SelectTrigger id="collect-sale" className="w-full">
-                  <SelectValue>
-                    {(value: unknown) => {
-                      const sale = creditSales.find((s) => s.sale_id === value)
-                      return sale
-                        ? `${new Date(sale.created_at).toLocaleDateString('es-MX')} — falta $${(sale.credit_amount - sale.collected).toFixed(2)}`
-                        : 'Selecciona una venta'
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Selecciona una venta</SelectItem>
-                  {creditSales
-                    .filter((s) => s.credit_amount - s.collected > 0.01)
-                    .map((s) => (
-                      <SelectItem key={s.sale_id} value={s.sale_id}>
-                        {new Date(s.created_at).toLocaleDateString('es-MX')} — falta $
-                        {(s.credit_amount - s.collected).toFixed(2)}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              <FieldLabel htmlFor="collect-amount" help={fieldHelp.collections.amount}>
-                Monto
-              </FieldLabel>
-              <Input
-                id="collect-amount"
-                type="number"
-                step="0.01"
-                value={collectAmount}
-                onChange={(e) => setCollectAmount(e.target.value)}
-              />
-            </div>
           </div>
           <SheetFooter>
-            <Button onClick={handleCollect} disabled={submitting || !collectSaleId || !collectAmount}>
-              {submitting ? 'Guardando…' : 'Registrar cobro'}
-            </Button>
+            {detailClient && (
+              <>
+                {confirmingDeactivate ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={() => toggleActive(detailClient, false)}
+                    >
+                      Confirmar desactivación
+                    </Button>
+                    <Button variant="secondary" onClick={() => setConfirmingDeactivate(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : detailClient.active ? (
+                  <Button variant="destructive" onClick={() => setConfirmingDeactivate(true)}>
+                    <Archive /> Desactivar cliente
+                  </Button>
+                ) : (
+                  <Button variant="secondary" onClick={() => toggleActive(detailClient, true)}>
+                    <ArchiveRestore /> Reactivar cliente
+                  </Button>
+                )}
+              </>
+            )}
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <CollectDebtSheet
+        open={!!collectTarget}
+        onOpenChange={(open) => !open && setCollectTarget(null)}
+        commitment={collectTarget}
+        clientName={detailClient?.name ?? ''}
+        onCollected={() => {
+          loadClients()
+          if (detailClient) openDetail(detailClient)
+        }}
+      />
     </div>
   )
 }

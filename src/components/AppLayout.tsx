@@ -10,6 +10,7 @@ import {
   Users,
   Receipt,
   History,
+  CalendarClock,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
@@ -30,6 +31,7 @@ const navItems = [
   { to: '/ventas', label: 'Ventas', icon: ShoppingCart },
   { to: '/caja', label: 'Caja', icon: Lock },
   { to: '/clientes', label: 'Clientes', icon: Users },
+  { to: '/cobros', label: 'Cobros', icon: CalendarClock },
   { to: '/ticket', label: 'Ticket', icon: Receipt },
   { to: '/historial', label: 'Historial', icon: History },
 ]
