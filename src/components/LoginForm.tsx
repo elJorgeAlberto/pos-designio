@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
+import { sileo } from 'sileo'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { FieldLabel } from '@/components/FieldLabel'
+import { fieldHelp } from '@/lib/field-help'
 import {
   Card,
   CardContent,
@@ -14,18 +16,16 @@ import {
 export function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setSubmitting(true)
-    setError(null)
 
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (signInError) {
-      setError('Correo o contraseña incorrectos.')
+      sileo.error({ title: 'Correo o contraseña incorrectos.' })
     }
     setSubmitting(false)
   }
@@ -45,7 +45,9 @@ export function LoginForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="email">Correo</Label>
+              <FieldLabel htmlFor="email" help={fieldHelp.login.email}>
+                Correo
+              </FieldLabel>
               <Input
                 id="email"
                 type="email"
@@ -56,7 +58,9 @@ export function LoginForm() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Contraseña</Label>
+              <FieldLabel htmlFor="password" help={fieldHelp.login.password}>
+                Contraseña
+              </FieldLabel>
               <Input
                 id="password"
                 type="password"
@@ -66,7 +70,6 @@ export function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" disabled={submitting} className="w-full">
               {submitting ? 'Entrando…' : 'Entrar'}
             </Button>
