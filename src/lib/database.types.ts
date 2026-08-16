@@ -403,6 +403,7 @@ export type Database = {
           branch_id: string
           created_at: string
           id: string
+          note: string | null
           product_id: string
           quantity: number
           reference_id: string | null
@@ -413,6 +414,7 @@ export type Database = {
           branch_id: string
           created_at?: string
           id?: string
+          note?: string | null
           product_id: string
           quantity: number
           reference_id?: string | null
@@ -423,6 +425,7 @@ export type Database = {
           branch_id?: string
           created_at?: string
           id?: string
+          note?: string | null
           product_id?: string
           quantity?: number
           reference_id?: string | null
@@ -471,6 +474,77 @@ export type Database = {
         }
         Relationships: []
       }
+      product_categories: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          name: string
+          parent_id: string | null
+        }
+        Insert: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name: string
+          parent_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          parent_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_images: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean
+          product_id: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          product_id: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          product_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_stock: {
         Row: {
           branch_id: string
@@ -507,38 +581,60 @@ export type Database = {
       products: {
         Row: {
           barcode: string | null
+          brand: string | null
+          category_id: string | null
           company_id: string
           cost: number
           created_at: string
+          description: string | null
           id: string
+          min_stock: number | null
           name: string
           price: number
           sale_type: string
+          sku: string | null
           unit: string
         }
         Insert: {
           barcode?: string | null
+          brand?: string | null
+          category_id?: string | null
           company_id?: string
           cost?: number
           created_at?: string
+          description?: string | null
           id?: string
+          min_stock?: number | null
           name: string
           price?: number
           sale_type: string
+          sku?: string | null
           unit: string
         }
         Update: {
           barcode?: string | null
+          brand?: string | null
+          category_id?: string | null
           company_id?: string
           cost?: number
           created_at?: string
+          description?: string | null
           id?: string
+          min_stock?: number | null
           name?: string
           price?: number
           sale_type?: string
+          sku?: string | null
           unit?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_company_id_fkey"
             columns: ["company_id"]
