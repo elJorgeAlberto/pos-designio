@@ -1216,6 +1216,7 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          name: string | null
           pin_hash: string | null
           role_id: string | null
         }
@@ -1223,6 +1224,7 @@ export type Database = {
           company_id: string
           created_at?: string
           id: string
+          name?: string | null
           pin_hash?: string | null
           role_id?: string | null
         }
@@ -1230,6 +1232,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          name?: string | null
           pin_hash?: string | null
           role_id?: string | null
         }

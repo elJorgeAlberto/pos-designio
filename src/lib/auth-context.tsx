@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 
 type Profile = {
   id: string
+  name: string | null
   companyId: string
   companyName: string
   roleName: string | null
@@ -24,7 +25,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('users')
     .select(
-      'id, company_id, company:companies(name), role:roles(name, role_permissions(permission:permissions(key))), user_branches(branch:branches(name))',
+      'id, name, company_id, company:companies(name), role:roles(name, role_permissions(permission:permissions(key))), user_branches(branch:branches(name))',
     )
     .eq('id', userId)
     .single()
@@ -36,6 +37,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
 
   return {
     id: data.id,
+    name: data.name,
     companyId: data.company_id,
     companyName: company?.name ?? '—',
     roleName: role?.name ?? null,
