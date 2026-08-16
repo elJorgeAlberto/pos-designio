@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 import { parseLocalDate } from '@/lib/dates'
@@ -46,6 +47,7 @@ type Detail = 'sales' | 'receivables' | null
 
 export function Home() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [period, setPeriod] = useState<Period>('week')
   const [loading, setLoading] = useState(true)
   const [salesDetail, setSalesDetail] = useState<SaleDetailRow[]>([])
@@ -53,6 +55,7 @@ export function Home() {
   const [topProducts, setTopProducts] = useState<{ label: string; value: number }[]>([])
   const [methodTotals, setMethodTotals] = useState<Record<string, number>>({})
   const [receivableRows, setReceivableRows] = useState<ReceivableRow[]>([])
+  const [expensesTotal, setExpensesTotal] = useState(0)
   const [openDetail, setOpenDetail] = useState<Detail>(null)
 
   const days = periods.find((p) => p.key === period)!.days
@@ -159,6 +162,14 @@ export function Home() {
           })),
         )
       })
+
+    supabase
+      .from('expenses')
+      .select('amount, created_at')
+      .gte('created_at', periodStart.toISOString())
+      .then(({ data }) => {
+        setExpensesTotal((data ?? []).reduce((sum, e) => sum + e.amount, 0))
+      })
   }
 
   useEffect(() => {
@@ -262,6 +273,14 @@ export function Home() {
             value={receivablesTotal}
             deltaGoodDirection="down"
             onClick={() => setOpenDetail('receivables')}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Gastos del periodo"
+            value={expensesTotal}
+            deltaGoodDirection="down"
+            onClick={() => navigate('/gastos')}
           />
         </div>
       </div>

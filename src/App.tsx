@@ -10,6 +10,7 @@ import { ClientsPage } from '@/pages/ClientsPage'
 import { TicketSettingsPage } from '@/pages/TicketSettingsPage'
 import { SalesHistoryPage } from '@/pages/SalesHistoryPage'
 import { CobrosPendientesPage } from '@/pages/CobrosPendientesPage'
+import { ExpensesPage } from '@/pages/ExpensesPage'
 
 function App() {
   const { session, loading } = useAuth()
@@ -27,6 +28,7 @@ function App() {
           <Route path="/caja" element={<CashRegisterPage />} />
           <Route path="/clientes" element={<ClientsPage />} />
           <Route path="/cobros" element={<CobrosPendientesPage />} />
+          <Route path="/gastos" element={<ExpensesPage />} />
           <Route path="/ticket" element={<TicketSettingsPage />} />
           <Route path="/historial" element={<SalesHistoryPage />} />
         </Route>

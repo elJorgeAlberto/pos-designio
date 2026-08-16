@@ -51,6 +51,12 @@ export const fieldHelp = {
     client: 'Opcional. Solo hace falta si vas a cobrar una parte de esta venta a crédito.',
     commitmentDate: 'La fecha en la que el cliente se compromete a pagar este crédito.',
   },
+  expenses: {
+    category: 'En qué se agrupa este gasto — gasolina, renta, mantenimiento, etc. Crea las que necesites.',
+    method: 'Cómo se pagó. Si es efectivo, se resta del efectivo esperado al cerrar la caja.',
+    amount: 'Cuánto se gastó.',
+    description: 'Opcional. Detalle breve, ej. "Gasolina camioneta de reparto".',
+  },
   ticketSettings: {
     logo: 'El logo que aparece arriba del ticket. Se recomienda una imagen cuadrada.',
     message: 'Texto que aparece al final del ticket — un agradecimiento, tus condiciones de crédito, lo que quieras.',
