@@ -38,14 +38,22 @@ type CartLine = {
   quantity: number
 }
 
-type PaymentMethod = 'cash' | 'card' | 'transfer'
-type PaymentLine = { id: string; method: PaymentMethod; amount: string }
+type PaymentMethod = 'cash' | 'card' | 'transfer' | 'credit'
+type PaymentLine = { id: string; method: PaymentMethod; amount: string; commitmentDate: string }
+type Client = { id: string; name: string }
 
 const paymentMethodLabel: Record<PaymentMethod, string> = {
   cash: 'Efectivo',
   card: 'Tarjeta',
   transfer: 'Transferencia',
+  credit: 'Crédito',
 }
+
+const quickCommitmentDates = [
+  { label: 'Mañana', days: 1 },
+  { label: '+1 mes', days: 30 },
+]
+const NEXT_VISIT = 'Próxima visita'
 
 export function SalesPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -57,6 +65,10 @@ export function SalesPage() {
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [payments, setPayments] = useState<PaymentLine[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [clients, setClients] = useState<Client[]>([])
+  const [clientId, setClientId] = useState<string>('')
+
+  const hasCredit = payments.some((p) => p.method === 'credit')
 
   const total = useMemo(
     () => cart.reduce((sum, line) => sum + line.quantity * line.product.price, 0),
@@ -79,6 +91,11 @@ export function SalesPage() {
         setLoading(false)
       })
 
+    supabase
+      .from('clients')
+      .select('id, name')
+      .order('name')
+      .then(({ data }) => setClients(data ?? []))
   }, [])
 
   useEffect(() => {
@@ -128,14 +145,20 @@ export function SalesPage() {
       sileo.warning({ title: 'Abre la caja antes de vender.' })
       return
     }
-    setPayments([{ id: crypto.randomUUID(), method: 'cash', amount: total.toFixed(2) }])
+    setClientId('')
+    setPayments([{ id: crypto.randomUUID(), method: 'cash', amount: total.toFixed(2), commitmentDate: '' }])
     setCheckoutOpen(true)
   }
 
   function addPaymentLine() {
     setPayments((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), method: 'cash', amount: remaining > 0 ? remaining.toFixed(2) : '0' },
+      {
+        id: crypto.randomUUID(),
+        method: 'cash',
+        amount: remaining > 0 ? remaining.toFixed(2) : '0',
+        commitmentDate: '',
+      },
     ])
   }
 
@@ -148,12 +171,21 @@ export function SalesPage() {
       sileo.warning({ title: 'Los pagos no cubren el total de la venta.' })
       return
     }
+    if (hasCredit && !clientId) {
+      sileo.warning({ title: 'Selecciona un cliente para la parte a crédito.' })
+      return
+    }
 
     setSubmitting(true)
 
     const { data: sale, error: saleError } = await supabase
       .from('sales')
-      .insert({ branch_id: branchId, cash_register_id: cashRegisterId, cash_register_session_id: sessionId })
+      .insert({
+        branch_id: branchId,
+        cash_register_id: cashRegisterId,
+        cash_register_session_id: sessionId,
+        client_id: clientId || null,
+      })
       .select('id')
       .single()
 
@@ -180,7 +212,12 @@ export function SalesPage() {
     }
 
     const { error: paymentsError } = await supabase.from('sale_payments').insert(
-      payments.map((p) => ({ sale_id: sale.id, method: p.method, amount: Number(p.amount) || 0 })),
+      payments.map((p) => ({
+        sale_id: sale.id,
+        method: p.method,
+        amount: Number(p.amount) || 0,
+        commitment_date: p.method === 'credit' && p.commitmentDate ? p.commitmentDate : null,
+      })),
     )
 
     if (paymentsError) {
@@ -192,6 +229,7 @@ export function SalesPage() {
     sileo.success({ title: `Venta registrada por $${total.toFixed(2)}` })
     setCart([])
     setPayments([])
+    setClientId('')
     setCheckoutOpen(false)
     setSubmitting(false)
   }
@@ -312,6 +350,28 @@ export function SalesPage() {
             <SheetDescription>Total a pagar: ${total.toFixed(2)}</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 overflow-y-auto px-4">
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="sale-client" help={fieldHelp.salesClient.client}>
+                Cliente
+              </FieldLabel>
+              <Select value={clientId || 'none'} onValueChange={(v) => setClientId(v === 'none' ? '' : (v ?? ''))}>
+                <SelectTrigger id="sale-client" className="w-full">
+                  <SelectValue>
+                    {(value: unknown) =>
+                      clients.find((c) => c.id === value)?.name ?? 'Sin cliente'
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin cliente</SelectItem>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {payments.map((payment, index) => (
               <div key={payment.id} className="flex flex-col gap-2 border-b border-border pb-4">
                 <FieldLabel htmlFor={`method-${payment.id}`} help={fieldHelp.sales.paymentMethod}>
@@ -334,6 +394,7 @@ export function SalesPage() {
                     <SelectItem value="cash">Efectivo</SelectItem>
                     <SelectItem value="card">Tarjeta</SelectItem>
                     <SelectItem value="transfer">Transferencia</SelectItem>
+                    <SelectItem value="credit">Crédito</SelectItem>
                   </SelectContent>
                 </Select>
                 <FieldLabel htmlFor={`amount-${payment.id}`} help={fieldHelp.sales.paymentAmount}>
@@ -350,6 +411,60 @@ export function SalesPage() {
                     )
                   }
                 />
+                {payment.method === 'credit' && (
+                  <>
+                    <FieldLabel
+                      htmlFor={`commitment-${payment.id}`}
+                      help={fieldHelp.salesClient.commitmentDate}
+                    >
+                      Fecha de compromiso
+                    </FieldLabel>
+                    <Input
+                      id={`commitment-${payment.id}`}
+                      type="date"
+                      value={payment.commitmentDate}
+                      onChange={(e) =>
+                        setPayments((prev) =>
+                          prev.map((p, i) =>
+                            i === index ? { ...p, commitmentDate: e.target.value } : p,
+                          ),
+                        )
+                      }
+                    />
+                    <div className="flex gap-2">
+                      {quickCommitmentDates.map((q) => (
+                        <Button
+                          key={q.label}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            const date = new Date()
+                            date.setDate(date.getDate() + q.days)
+                            const iso = date.toISOString().slice(0, 10)
+                            setPayments((prev) =>
+                              prev.map((p, i) => (i === index ? { ...p, commitmentDate: iso } : p)),
+                            )
+                          }}
+                        >
+                          {q.label}
+                        </Button>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          setPayments((prev) =>
+                            prev.map((p, i) => (i === index ? { ...p, commitmentDate: '' } : p)),
+                          )
+                        }
+                      >
+                        {NEXT_VISIT}
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
             <Button type="button" variant="secondary" onClick={addPaymentLine}>

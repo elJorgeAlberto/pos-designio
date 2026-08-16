@@ -187,6 +187,83 @@ export type Database = {
           },
         ]
       }
+      clients: {
+        Row: {
+          company_id: string
+          created_at: string
+          credit_limit: number | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+        }
+        Insert: {
+          company_id?: string
+          created_at?: string
+          credit_limit?: number | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          credit_limit?: number | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      collections: {
+        Row: {
+          amount: number
+          client_id: string
+          created_at: string
+          id: string
+          sale_id: string
+        }
+        Insert: {
+          amount: number
+          client_id: string
+          created_at?: string
+          id?: string
+          sale_id: string
+        }
+        Update: {
+          amount?: number
+          client_id?: string
+          created_at?: string
+          id?: string
+          sale_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "collections_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collections_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           business_type_id: string | null
@@ -479,6 +556,7 @@ export type Database = {
       sale_payments: {
         Row: {
           amount: number
+          commitment_date: string | null
           created_at: string
           id: string
           method: string
@@ -486,6 +564,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          commitment_date?: string | null
           created_at?: string
           id?: string
           method: string
@@ -493,6 +572,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          commitment_date?: string | null
           created_at?: string
           id?: string
           method?: string
@@ -513,6 +593,7 @@ export type Database = {
           branch_id: string
           cash_register_id: string
           cash_register_session_id: string | null
+          client_id: string | null
           created_at: string
           id: string
           total: number
@@ -522,6 +603,7 @@ export type Database = {
           branch_id: string
           cash_register_id: string
           cash_register_session_id?: string | null
+          client_id?: string | null
           created_at?: string
           id?: string
           total?: number
@@ -531,6 +613,7 @@ export type Database = {
           branch_id?: string
           cash_register_id?: string
           cash_register_session_id?: string | null
+          client_id?: string | null
           created_at?: string
           id?: string
           total?: number
@@ -556,6 +639,13 @@ export type Database = {
             columns: ["cash_register_session_id"]
             isOneToOne: false
             referencedRelation: "cash_register_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
           {

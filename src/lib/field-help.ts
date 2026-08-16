@@ -26,4 +26,16 @@ export const fieldHelp = {
     openingAmount: 'El efectivo con el que arranca la caja — el fondo que dejas antes de la primera venta del turno.',
     countedAmount: 'Cuenta el efectivo físico que hay en la caja ahora mismo y captúralo aquí, tal cual, sin ajustarlo.',
   },
+  clients: {
+    name: 'El nombre con el que vas a identificar a este cliente.',
+    creditLimit: 'Opcional. El máximo que le vas a dejar deber a este cliente al mismo tiempo — solo de referencia, no bloquea la venta todavía.',
+  },
+  collections: {
+    sale: 'A cuál venta a crédito de este cliente le estás aplicando el pago.',
+    amount: 'Cuánto está pagando el cliente ahora — puede ser un abono parcial, no hace falta que liquide todo.',
+  },
+  salesClient: {
+    client: 'Opcional. Solo hace falta si vas a cobrar una parte de esta venta a crédito.',
+    commitmentDate: 'La fecha en la que el cliente se compromete a pagar este crédito.',
+  },
 } as const
