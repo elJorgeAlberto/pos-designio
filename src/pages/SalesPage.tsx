@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { sileo } from 'sileo'
-import { Minus, Plus, Trash2, ShoppingCart } from 'lucide-react'
+import html2canvas from 'html2canvas'
+import { Minus, Plus, Trash2, ShoppingCart, Share2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth-context'
 import { useBranchContext } from '@/lib/use-branch-context'
+import { Ticket } from '@/components/Ticket'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/FieldLabel'
@@ -56,6 +59,7 @@ const quickCommitmentDates = [
 const NEXT_VISIT = 'Próxima visita'
 
 export function SalesPage() {
+  const { profile } = useAuth()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<CartLine[]>([])
@@ -67,6 +71,17 @@ export function SalesPage() {
   const [submitting, setSubmitting] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [clientId, setClientId] = useState<string>('')
+  const [ticketSettings, setTicketSettings] = useState<{ logoUrl: string | null; message: string | null }>({
+    logoUrl: null,
+    message: null,
+  })
+  const [lastSale, setLastSale] = useState<{
+    date: Date
+    items: { name: string; quantity: number; unit: string; unitPrice: number }[]
+    payments: { method: string; amount: number }[]
+    total: number
+  } | null>(null)
+  const ticketRef = useRef<HTMLDivElement>(null)
 
   const hasCredit = payments.some((p) => p.method === 'credit')
 
@@ -96,6 +111,14 @@ export function SalesPage() {
       .select('id, name')
       .order('name')
       .then(({ data }) => setClients(data ?? []))
+
+    supabase
+      .from('ticket_settings')
+      .select('logo_url, message')
+      .maybeSingle()
+      .then(({ data }) =>
+        setTicketSettings({ logoUrl: data?.logo_url ?? null, message: data?.message ?? null }),
+      )
   }, [])
 
   useEffect(() => {
@@ -227,11 +250,40 @@ export function SalesPage() {
     }
 
     sileo.success({ title: `Venta registrada por $${total.toFixed(2)}` })
+    setLastSale({
+      date: new Date(),
+      items: cart.map((line) => ({
+        name: line.product.name,
+        quantity: line.quantity,
+        unit: line.product.unit,
+        unitPrice: line.product.price,
+      })),
+      payments: payments.map((p) => ({ method: p.method, amount: Number(p.amount) || 0 })),
+      total,
+    })
     setCart([])
     setPayments([])
     setClientId('')
     setCheckoutOpen(false)
     setSubmitting(false)
+  }
+
+  async function shareTicket() {
+    if (!ticketRef.current) return
+    const canvas = await html2canvas(ticketRef.current, { backgroundColor: '#ffffff' })
+    canvas.toBlob(async (blob) => {
+      if (!blob) return
+      const file = new File([blob], 'ticket.png', { type: 'image/png' })
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Ticket' })
+        } catch {
+          // user cancelled the share sheet — not an error
+        }
+      } else {
+        sileo.info({ title: 'Mantén presionada la imagen del ticket para guardarla.' })
+      }
+    })
   }
 
   return (
@@ -480,6 +532,34 @@ export function SalesPage() {
           <SheetFooter>
             <Button onClick={confirmSale} disabled={submitting || Math.abs(remaining) > 0.01}>
               {submitting ? 'Guardando…' : 'Confirmar venta'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={!!lastSale} onOpenChange={(open) => !open && setLastSale(null)}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Venta registrada</SheetTitle>
+            <SheetDescription>Comparte el ticket con el cliente.</SheetDescription>
+          </SheetHeader>
+          {lastSale && (
+            <div className="flex flex-col items-center gap-4 overflow-y-auto px-4">
+              <Ticket
+                ref={ticketRef}
+                companyName={profile?.companyName ?? ''}
+                logoUrl={ticketSettings.logoUrl}
+                message={ticketSettings.message}
+                date={lastSale.date}
+                items={lastSale.items}
+                payments={lastSale.payments}
+                total={lastSale.total}
+              />
+            </div>
+          )}
+          <SheetFooter>
+            <Button onClick={shareTicket}>
+              <Share2 /> Compartir ticket
             </Button>
           </SheetFooter>
         </SheetContent>

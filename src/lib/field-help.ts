@@ -38,4 +38,8 @@ export const fieldHelp = {
     client: 'Opcional. Solo hace falta si vas a cobrar una parte de esta venta a crédito.',
     commitmentDate: 'La fecha en la que el cliente se compromete a pagar este crédito.',
   },
+  ticketSettings: {
+    logo: 'El logo que aparece arriba del ticket. Se recomienda una imagen cuadrada.',
+    message: 'Texto que aparece al final del ticket — un agradecimiento, tus condiciones de crédito, lo que quieras.',
+  },
 } as const

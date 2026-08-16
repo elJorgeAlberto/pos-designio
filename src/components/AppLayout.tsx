@@ -29,6 +29,9 @@ export function AppLayout() {
             <Link to="/clientes" className="text-foreground hover:text-primary">
               Clientes
             </Link>
+            <Link to="/ticket" className="text-foreground hover:text-primary">
+              Ticket
+            </Link>
           </nav>
         </div>
         <Button variant="secondary" size="sm" onClick={() => supabase.auth.signOut()}>

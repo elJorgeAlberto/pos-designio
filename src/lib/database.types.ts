@@ -669,6 +669,38 @@ export type Database = {
         }
         Relationships: []
       }
+      ticket_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          logo_url: string | null
+          message: string | null
+        }
+        Insert: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          message?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_branches: {
         Row: {
           branch_id: string

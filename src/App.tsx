@@ -7,6 +7,7 @@ import { ProductsPage } from '@/pages/ProductsPage'
 import { SalesPage } from '@/pages/SalesPage'
 import { CashRegisterPage } from '@/pages/CashRegisterPage'
 import { ClientsPage } from '@/pages/ClientsPage'
+import { TicketSettingsPage } from '@/pages/TicketSettingsPage'
 
 function App() {
   const { session, loading } = useAuth()
@@ -23,6 +24,7 @@ function App() {
           <Route path="/ventas" element={<SalesPage />} />
           <Route path="/caja" element={<CashRegisterPage />} />
           <Route path="/clientes" element={<ClientsPage />} />
+          <Route path="/ticket" element={<TicketSettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
