@@ -1,12 +1,26 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useAuth } from '@/lib/auth-context'
 import { LoginForm } from '@/components/LoginForm'
-import { AuthenticatedHome } from '@/components/AuthenticatedHome'
+import { AppLayout } from '@/components/AppLayout'
+import { Home } from '@/pages/Home'
+import { ProductsPage } from '@/pages/ProductsPage'
 
 function App() {
   const { session, loading } = useAuth()
 
   if (loading) return null
-  return session ? <AuthenticatedHome /> : <LoginForm />
+  if (!session) return <LoginForm />
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/productos" element={<ProductsPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 export default App

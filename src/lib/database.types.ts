@@ -161,6 +161,61 @@ export type Database = {
           },
         ]
       }
+      inventory_movements: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          reference_id: string | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity: number
+          reference_id?: string | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          reference_id?: string | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_movements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       permissions: {
         Row: {
           description: string
@@ -178,6 +233,83 @@ export type Database = {
           key?: string
         }
         Relationships: []
+      }
+      product_stock: {
+        Row: {
+          branch_id: string
+          product_id: string
+          quantity: number
+        }
+        Insert: {
+          branch_id: string
+          product_id: string
+          quantity?: number
+        }
+        Update: {
+          branch_id?: string
+          product_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_stock_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          barcode: string | null
+          company_id: string
+          cost: number
+          created_at: string
+          id: string
+          name: string
+          price: number
+          sale_type: string
+          unit: string
+        }
+        Insert: {
+          barcode?: string | null
+          company_id?: string
+          cost?: number
+          created_at?: string
+          id?: string
+          name: string
+          price?: number
+          sale_type: string
+          unit: string
+        }
+        Update: {
+          barcode?: string | null
+          company_id?: string
+          cost?: number
+          created_at?: string
+          id?: string
+          name?: string
+          price?: number
+          sale_type?: string
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_permissions: {
         Row: {
