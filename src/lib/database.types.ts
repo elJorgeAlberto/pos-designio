@@ -97,6 +97,67 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_register_sessions: {
+        Row: {
+          cash_register_id: string
+          closed_at: string | null
+          closed_by: string | null
+          counted_amount: number | null
+          difference: number | null
+          expected_amount: number | null
+          id: string
+          opened_at: string
+          opened_by: string
+          opening_amount: number
+        }
+        Insert: {
+          cash_register_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_amount?: number | null
+          difference?: number | null
+          expected_amount?: number | null
+          id?: string
+          opened_at?: string
+          opened_by?: string
+          opening_amount: number
+        }
+        Update: {
+          cash_register_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_amount?: number | null
+          difference?: number | null
+          expected_amount?: number | null
+          id?: string
+          opened_at?: string
+          opened_by?: string
+          opening_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_register_sessions_cash_register_id_fkey"
+            columns: ["cash_register_id"]
+            isOneToOne: false
+            referencedRelation: "cash_registers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_register_sessions_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_register_sessions_opened_by_fkey"
+            columns: ["opened_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_registers: {
         Row: {
           branch_id: string
@@ -451,6 +512,7 @@ export type Database = {
         Row: {
           branch_id: string
           cash_register_id: string
+          cash_register_session_id: string | null
           created_at: string
           id: string
           total: number
@@ -459,6 +521,7 @@ export type Database = {
         Insert: {
           branch_id: string
           cash_register_id: string
+          cash_register_session_id?: string | null
           created_at?: string
           id?: string
           total?: number
@@ -467,6 +530,7 @@ export type Database = {
         Update: {
           branch_id?: string
           cash_register_id?: string
+          cash_register_session_id?: string | null
           created_at?: string
           id?: string
           total?: number
@@ -485,6 +549,13 @@ export type Database = {
             columns: ["cash_register_id"]
             isOneToOne: false
             referencedRelation: "cash_registers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_cash_register_session_id_fkey"
+            columns: ["cash_register_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_register_sessions"
             referencedColumns: ["id"]
           },
           {

@@ -22,4 +22,8 @@ export const fieldHelp = {
     paymentMethod: 'Cómo está pagando el cliente esta parte del total.',
     paymentAmount: 'El monto que cubre este método de pago. Puedes dividir el total entre varios métodos.',
   },
+  cashRegister: {
+    openingAmount: 'El efectivo con el que arranca la caja — el fondo que dejas antes de la primera venta del turno.',
+    countedAmount: 'Cuenta el efectivo físico que hay en la caja ahora mismo y captúralo aquí, tal cual, sin ajustarlo.',
+  },
 } as const

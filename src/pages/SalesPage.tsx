@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { sileo } from 'sileo'
 import { Minus, Plus, Trash2, ShoppingCart } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useBranchContext } from '@/lib/use-branch-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/FieldLabel'
@@ -50,8 +51,9 @@ export function SalesPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<CartLine[]>([])
-  const [branchId, setBranchId] = useState<string | null>(null)
-  const [cashRegisterId, setCashRegisterId] = useState<string | null>(null)
+  const { branchId, cashRegisterId } = useBranchContext()
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionChecked, setSessionChecked] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [payments, setPayments] = useState<PaymentLine[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -77,23 +79,21 @@ export function SalesPage() {
         setLoading(false)
       })
 
+  }, [])
+
+  useEffect(() => {
+    if (!cashRegisterId) return
     supabase
-      .from('user_branches')
-      .select('branch_id')
-      .limit(1)
+      .from('cash_register_sessions')
+      .select('id')
+      .eq('cash_register_id', cashRegisterId)
+      .is('closed_at', null)
       .maybeSingle()
       .then(({ data }) => {
-        if (!data?.branch_id) return
-        setBranchId(data.branch_id)
-        supabase
-          .from('cash_registers')
-          .select('id')
-          .eq('branch_id', data.branch_id)
-          .limit(1)
-          .maybeSingle()
-          .then(({ data: register }) => setCashRegisterId(register?.id ?? null))
+        setSessionId(data?.id ?? null)
+        setSessionChecked(true)
       })
-  }, [])
+  }, [cashRegisterId])
 
   function addToCart(product: Product) {
     setCart((prev) => {
@@ -124,6 +124,10 @@ export function SalesPage() {
       sileo.warning({ title: 'Agrega al menos un producto antes de cobrar.' })
       return
     }
+    if (!sessionId) {
+      sileo.warning({ title: 'Abre la caja antes de vender.' })
+      return
+    }
     setPayments([{ id: crypto.randomUUID(), method: 'cash', amount: total.toFixed(2) }])
     setCheckoutOpen(true)
   }
@@ -136,8 +140,8 @@ export function SalesPage() {
   }
 
   async function confirmSale() {
-    if (!branchId || !cashRegisterId) {
-      sileo.error({ title: 'No se encontró una caja asignada a tu usuario.' })
+    if (!branchId || !cashRegisterId || !sessionId) {
+      sileo.error({ title: 'No se encontró una caja abierta para tu usuario.' })
       return
     }
     if (Math.abs(remaining) > 0.01) {
@@ -149,7 +153,7 @@ export function SalesPage() {
 
     const { data: sale, error: saleError } = await supabase
       .from('sales')
-      .insert({ branch_id: branchId, cash_register_id: cashRegisterId })
+      .insert({ branch_id: branchId, cash_register_id: cashRegisterId, cash_register_session_id: sessionId })
       .select('id')
       .single()
 
@@ -193,7 +197,13 @@ export function SalesPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
+    <div className="flex flex-col gap-4">
+      {sessionChecked && !sessionId && (
+        <div className="border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          La caja está cerrada — ábrela desde la sección Caja antes de vender.
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
       <Card>
         <CardHeader>
           <CardTitle>Catálogo</CardTitle>
@@ -359,6 +369,7 @@ export function SalesPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+      </div>
     </div>
   )
 }
