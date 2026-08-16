@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { sileo } from 'sileo'
-import { Plus } from 'lucide-react'
+import { Plus, MapPin } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { parseLocalDate } from '@/lib/dates'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/FieldLabel'
 import { fieldHelp } from '@/lib/field-help'
+import { ClientLocationMap } from '@/components/ClientLocationMap'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -37,6 +38,9 @@ type Client = {
   id: string
   name: string
   credit_limit: number | null
+  address: string | null
+  latitude: number | null
+  longitude: number | null
   balance: number
 }
 
@@ -54,6 +58,9 @@ export function ClientsPage() {
   const [newOpen, setNewOpen] = useState(false)
   const [name, setName] = useState('')
   const [creditLimit, setCreditLimit] = useState('')
+  const [address, setAddress] = useState('')
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [locating, setLocating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const [detailClient, setDetailClient] = useState<Client | null>(null)
@@ -63,7 +70,9 @@ export function ClientsPage() {
 
   async function loadClients() {
     setLoading(true)
-    const { data: clientRows, error } = await supabase.from('clients').select('id, name, credit_limit')
+    const { data: clientRows, error } = await supabase
+      .from('clients')
+      .select('id, name, credit_limit, address, latitude, longitude')
     if (error || !clientRows) {
       sileo.error({ title: 'No se pudieron cargar los clientes.' })
       setLoading(false)
@@ -103,13 +112,35 @@ export function ClientsPage() {
     loadClients()
   }, [])
 
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      sileo.error({ title: 'Este dispositivo no soporta geolocalización.' })
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCoords({ lat: position.coords.latitude, lng: position.coords.longitude })
+        setLocating(false)
+      },
+      () => {
+        sileo.error({ title: 'No se pudo obtener tu ubicación.' })
+        setLocating(false)
+      },
+    )
+  }
+
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
     setSubmitting(true)
 
-    const { error } = await supabase
-      .from('clients')
-      .insert({ name, credit_limit: creditLimit ? Number(creditLimit) : null })
+    const { error } = await supabase.from('clients').insert({
+      name,
+      credit_limit: creditLimit ? Number(creditLimit) : null,
+      address: address || null,
+      latitude: coords?.lat ?? null,
+      longitude: coords?.lng ?? null,
+    })
 
     if (error) {
       sileo.error({ title: error.message })
@@ -117,6 +148,8 @@ export function ClientsPage() {
       sileo.success({ title: `"${name}" se agregó a tus clientes.` })
       setName('')
       setCreditLimit('')
+      setAddress('')
+      setCoords(null)
       setNewOpen(false)
       loadClients()
     }
@@ -218,6 +251,31 @@ export function ClientsPage() {
                   onChange={(e) => setCreditLimit(e.target.value)}
                 />
               </div>
+              <div className="flex flex-col gap-2">
+                <FieldLabel htmlFor="client-address" help={fieldHelp.clients.address}>
+                  Dirección
+                </FieldLabel>
+                <Input
+                  id="client-address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <FieldLabel htmlFor="use-location" help={fieldHelp.clients.location}>
+                  Ubicación
+                </FieldLabel>
+                <Button
+                  id="use-location"
+                  type="button"
+                  variant="secondary"
+                  disabled={locating}
+                  onClick={useMyLocation}
+                >
+                  <MapPin /> {locating ? 'Obteniendo…' : coords ? 'Ubicación capturada' : 'Usar mi ubicación'}
+                </Button>
+                {coords && <ClientLocationMap latitude={coords.lat} longitude={coords.lng} />}
+              </div>
             </form>
             <SheetFooter>
               <Button type="submit" form="client-form" disabled={submitting}>
@@ -275,6 +333,12 @@ export function ClientsPage() {
             <SheetDescription>Saldo pendiente: ${detailClient?.balance.toFixed(2)}</SheetDescription>
           </SheetHeader>
           <div className="flex flex-col gap-4 overflow-y-auto px-4">
+            {detailClient?.address && (
+              <p className="text-sm text-muted-foreground">{detailClient.address}</p>
+            )}
+            {detailClient?.latitude != null && detailClient?.longitude != null && (
+              <ClientLocationMap latitude={detailClient.latitude} longitude={detailClient.longitude} />
+            )}
             {creditSales.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin ventas a crédito.</p>
             ) : (

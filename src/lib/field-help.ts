@@ -29,6 +29,8 @@ export const fieldHelp = {
   clients: {
     name: 'El nombre con el que vas a identificar a este cliente.',
     creditLimit: 'Opcional. El máximo que le vas a dejar deber a este cliente al mismo tiempo — solo de referencia, no bloquea la venta todavía.',
+    address: 'La dirección tal como te la da el cliente — es independiente del pin del mapa, escríbela aunque ya hayas capturado la ubicación.',
+    location: 'Usa el botón para guardar la ubicación exacta desde donde estás parado (ideal: en el domicilio del cliente).',
   },
   collections: {
     sale: 'A cuál venta a crédito de este cliente le estás aplicando el pago.',

@@ -189,6 +189,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          address: string | null
           company_id: string
           created_at: string
           credit_limit: number | null
@@ -198,6 +199,7 @@ export type Database = {
           name: string
         }
         Insert: {
+          address?: string | null
           company_id?: string
           created_at?: string
           credit_limit?: number | null
@@ -207,6 +209,7 @@ export type Database = {
           name: string
         }
         Update: {
+          address?: string | null
           company_id?: string
           created_at?: string
           credit_limit?: number | null
