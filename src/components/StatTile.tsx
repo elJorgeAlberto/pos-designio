@@ -1,4 +1,4 @@
-import { TrendingUp, TrendingDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 
 function formatCompact(value: number): string {
@@ -13,35 +13,48 @@ export function StatTile({
   deltaPct,
   deltaGoodDirection = 'up',
   isCurrency = true,
+  onClick,
 }: {
   label: string
   value: number
   deltaPct?: number | null
   deltaGoodDirection?: 'up' | 'down'
   isCurrency?: boolean
+  onClick?: () => void
 }) {
   const hasDelta = deltaPct != null && Number.isFinite(deltaPct)
   const isUp = hasDelta && deltaPct! >= 0
   const isGood = hasDelta && (deltaGoodDirection === 'up' ? isUp : !isUp)
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-1 py-4">
-        <span className="text-sm text-muted-foreground">{label}</span>
-        <span
-          style={{ fontFamily: 'var(--font-heading)' }}
-          className="text-2xl font-semibold tabular-nums"
-        >
-          {isCurrency ? formatCompact(value) : value.toLocaleString('es-MX')}
-        </span>
-        {hasDelta && (
+    <Card
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick()
+      }}
+      className={onClick ? 'transition-colors hover:border-primary' : ''}
+    >
+      <CardContent className="flex items-center justify-between gap-2 py-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-muted-foreground">{label}</span>
           <span
-            className={`flex items-center gap-1 text-xs font-medium ${isGood ? 'text-success' : 'text-destructive'}`}
+            style={{ fontFamily: 'var(--font-heading)' }}
+            className="text-2xl font-semibold tabular-nums"
           >
-            {isUp ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
-            {Math.abs(deltaPct!).toFixed(0)}% vs periodo anterior
+            {isCurrency ? formatCompact(value) : value.toLocaleString('es-MX')}
           </span>
-        )}
+          {hasDelta && (
+            <span
+              className={`flex items-center gap-1 text-xs font-medium ${isGood ? 'text-success' : 'text-destructive'}`}
+            >
+              {isUp ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+              {Math.abs(deltaPct!).toFixed(0)}% vs periodo anterior
+            </span>
+          )}
+        </div>
+        {onClick && <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
       </CardContent>
     </Card>
   )

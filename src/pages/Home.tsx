@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { parseLocalDate } from '@/lib/dates'
 import { StatTile } from '@/components/StatTile'
 import { BarChart } from '@/components/charts/BarChart'
 import { HorizontalBarChart } from '@/components/charts/HorizontalBarChart'
 import { StackedBarChart } from '@/components/charts/StackedBarChart'
+import { SalesDetailDrawer, type SaleDetailRow } from '@/components/SalesDetailDrawer'
+import { ReceivablesDrawer, type ReceivableRow } from '@/components/ReceivablesDrawer'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -39,16 +42,18 @@ function startOfDay(d: Date) {
   return copy
 }
 
+type Detail = 'sales' | 'receivables' | null
+
 export function Home() {
   const { profile } = useAuth()
   const [period, setPeriod] = useState<Period>('week')
   const [loading, setLoading] = useState(true)
-  const [sales, setSales] = useState<{ id: string; total: number; discount_amount: number; created_at: string }[]>(
-    [],
-  )
+  const [salesDetail, setSalesDetail] = useState<SaleDetailRow[]>([])
+  const [previousTotal, setPreviousTotal] = useState(0)
   const [topProducts, setTopProducts] = useState<{ label: string; value: number }[]>([])
   const [methodTotals, setMethodTotals] = useState<Record<string, number>>({})
-  const [receivables, setReceivables] = useState(0)
+  const [receivableRows, setReceivableRows] = useState<ReceivableRow[]>([])
+  const [openDetail, setOpenDetail] = useState<Detail>(null)
 
   const days = periods.find((p) => p.key === period)!.days
   const periodStart = useMemo(() => {
@@ -66,18 +71,18 @@ export function Home() {
     setLoading(true)
     supabase
       .from('sales')
-      .select('id, total, discount_amount, created_at')
+      .select('id, total, discount_amount, created_at, client:clients(name)')
       .is('voided_at', null)
       .gte('created_at', previousPeriodStart.toISOString())
       .then(async ({ data }) => {
         const allSales = data ?? []
-        setSales(allSales)
+        const currentRaw = allSales.filter((s) => new Date(s.created_at) >= periodStart)
+        const previousRaw = allSales.filter((s) => new Date(s.created_at) < periodStart)
+        setPreviousTotal(previousRaw.reduce((sum, s) => sum + (s.total - s.discount_amount), 0))
 
-        const currentIds = allSales
-          .filter((s) => new Date(s.created_at) >= periodStart)
-          .map((s) => s.id)
-
+        const currentIds = currentRaw.map((s) => s.id)
         if (currentIds.length === 0) {
+          setSalesDetail([])
           setTopProducts([])
           setMethodTotals({})
           setLoading(false)
@@ -87,56 +92,99 @@ export function Home() {
         const [{ data: items }, { data: payments }] = await Promise.all([
           supabase
             .from('sale_items')
-            .select('quantity, unit_price, product:products(name)')
+            .select('sale_id, quantity, unit_price, unit_cost, product:products(name)')
             .in('sale_id', currentIds),
-          supabase.from('sale_payments').select('method, amount').in('sale_id', currentIds),
+          supabase.from('sale_payments').select('sale_id, method, amount').in('sale_id', currentIds),
         ])
 
         const byProduct = new Map<string, number>()
+        const costBySale = new Map<string, number>()
         for (const item of items ?? []) {
           const name = Array.isArray(item.product) ? item.product[0]?.name : item.product?.name
-          if (!name) continue
-          byProduct.set(name, (byProduct.get(name) ?? 0) + item.quantity * item.unit_price)
+          if (name) byProduct.set(name, (byProduct.get(name) ?? 0) + item.quantity * item.unit_price)
+          costBySale.set(item.sale_id, (costBySale.get(item.sale_id) ?? 0) + item.quantity * item.unit_cost)
         }
-        const ranked = [...byProduct.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([label, value]) => ({ label, value }))
-        setTopProducts(ranked)
+        setTopProducts(
+          [...byProduct.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([label, value]) => ({ label, value })),
+        )
 
         const byMethod: Record<string, number> = {}
+        const methodsBySale = new Map<string, string[]>()
         for (const p of payments ?? []) {
           byMethod[p.method] = (byMethod[p.method] ?? 0) + p.amount
+          methodsBySale.set(p.sale_id, [...(methodsBySale.get(p.sale_id) ?? []), p.method])
         }
         setMethodTotals(byMethod)
+
+        setSalesDetail(
+          currentRaw.map((s) => {
+            const client = Array.isArray(s.client) ? s.client[0] : s.client
+            return {
+              id: s.id,
+              createdAt: s.created_at,
+              total: s.total,
+              discount: s.discount_amount,
+              cost: costBySale.get(s.id) ?? 0,
+              clientName: client?.name ?? null,
+              methods: methodsBySale.get(s.id) ?? [],
+            }
+          }),
+        )
         setLoading(false)
       })
 
     supabase
       .from('sales')
-      .select('client_id, sale_payments(method, amount)')
+      .select('client_id, client:clients(name), sale_payments(method, amount, commitment_date)')
       .not('client_id', 'is', null)
       .is('voided_at', null)
       .then(async ({ data: creditSales }) => {
-        const owed = (creditSales ?? []).reduce(
-          (sum, s) =>
-            sum + s.sale_payments.filter((p) => p.method === 'credit').reduce((a, p) => a + p.amount, 0),
-          0,
-        )
-        const { data: collections } = await supabase.from('collections').select('amount')
-        const collected = (collections ?? []).reduce((sum, c) => sum + c.amount, 0)
-        setReceivables(Math.max(0, owed - collected))
+        const { data: collections } = await supabase.from('collections').select('client_id, amount')
+        const collectedByClient = new Map<string, number>()
+        for (const c of collections ?? []) {
+          collectedByClient.set(c.client_id, (collectedByClient.get(c.client_id) ?? 0) + c.amount)
+        }
+
+        const owedByClient = new Map<string, { name: string; owed: number; overdue: boolean }>()
+        const today = new Date()
+        for (const s of creditSales ?? []) {
+          if (!s.client_id) continue
+          const client = Array.isArray(s.client) ? s.client[0] : s.client
+          const entry = owedByClient.get(s.client_id) ?? {
+            name: client?.name ?? '—',
+            owed: 0,
+            overdue: false,
+          }
+          for (const p of s.sale_payments) {
+            if (p.method !== 'credit') continue
+            entry.owed += p.amount
+            if (p.commitment_date && parseLocalDate(p.commitment_date) < today) entry.overdue = true
+          }
+          owedByClient.set(s.client_id, entry)
+        }
+
+        const rows: ReceivableRow[] = [...owedByClient.entries()]
+          .map(([clientId, entry]) => ({
+            clientId,
+            name: entry.name,
+            balance: entry.owed - (collectedByClient.get(clientId) ?? 0),
+            overdue: entry.overdue,
+          }))
+          .filter((r) => r.balance > 0.01)
+        setReceivableRows(rows)
       })
   }, [periodStart, previousPeriodStart])
 
-  const currentSales = sales.filter((s) => new Date(s.created_at) >= periodStart)
-  const previousSales = sales.filter((s) => new Date(s.created_at) < periodStart)
-
-  const currentTotal = currentSales.reduce((sum, s) => sum + (s.total - s.discount_amount), 0)
-  const previousTotal = previousSales.reduce((sum, s) => sum + (s.total - s.discount_amount), 0)
+  const currentTotal = salesDetail.reduce((sum, s) => sum + (s.total - s.discount), 0)
+  const totalCost = salesDetail.reduce((sum, s) => sum + s.cost, 0)
+  const totalDiscount = salesDetail.reduce((sum, s) => sum + s.discount, 0)
   const deltaPct = previousTotal > 0 ? ((currentTotal - previousTotal) / previousTotal) * 100 : null
-
-  const avgTicket = currentSales.length > 0 ? currentTotal / currentSales.length : 0
+  const avgTicket = salesDetail.length > 0 ? currentTotal / salesDetail.length : 0
+  const profit = currentTotal - totalCost
+  const receivablesTotal = receivableRows.reduce((sum, r) => sum + r.balance, 0)
 
   const dailyData = useMemo(() => {
     const byDay = new Map<string, number>()
@@ -145,15 +193,15 @@ export function Home() {
       d.setDate(d.getDate() + i)
       byDay.set(d.toDateString(), 0)
     }
-    for (const s of currentSales) {
-      const key = new Date(s.created_at).toDateString()
-      if (byDay.has(key)) byDay.set(key, (byDay.get(key) ?? 0) + (s.total - s.discount_amount))
+    for (const s of salesDetail) {
+      const key = new Date(s.createdAt).toDateString()
+      if (byDay.has(key)) byDay.set(key, (byDay.get(key) ?? 0) + (s.total - s.discount))
     }
     return [...byDay.entries()].map(([key, value]) => ({
       label: new Date(key).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }),
       value,
     }))
-  }, [currentSales, periodStart, days])
+  }, [salesDetail, periodStart, days])
 
   const paymentSegments = Object.entries(methodTotals).map(([method, value]) => ({
     label: methodLabel[method] ?? method,
@@ -189,10 +237,45 @@ export function Home() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatTile label="Ventas del periodo" value={currentTotal} deltaPct={deltaPct} />
-        <StatTile label="Ticket promedio" value={avgTicket} />
-        <StatTile label="Cuentas por cobrar" value={receivables} deltaGoodDirection="down" />
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2">
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Ventas del periodo"
+            value={currentTotal}
+            deltaPct={deltaPct}
+            onClick={() => setOpenDetail('sales')}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile label="Ticket promedio" value={avgTicket} onClick={() => setOpenDetail('sales')} />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Número de ventas"
+            value={salesDetail.length}
+            isCurrency={false}
+            onClick={() => setOpenDetail('sales')}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Utilidad estimada"
+            value={profit}
+            deltaGoodDirection="up"
+            onClick={() => setOpenDetail('sales')}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile label="Descuentos otorgados" value={totalDiscount} onClick={() => setOpenDetail('sales')} />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Cuentas por cobrar"
+            value={receivablesTotal}
+            deltaGoodDirection="down"
+            onClick={() => setOpenDetail('receivables')}
+          />
+        </div>
       </div>
 
       <Card>
@@ -230,6 +313,18 @@ export function Home() {
           </CardContent>
         </Card>
       </div>
+
+      <SalesDetailDrawer
+        open={openDetail === 'sales'}
+        onOpenChange={(o) => setOpenDetail(o ? 'sales' : null)}
+        title="Ventas del periodo"
+        sales={salesDetail}
+      />
+      <ReceivablesDrawer
+        open={openDetail === 'receivables'}
+        onOpenChange={(o) => setOpenDetail(o ? 'receivables' : null)}
+        clients={receivableRows}
+      />
     </div>
   )
 }
