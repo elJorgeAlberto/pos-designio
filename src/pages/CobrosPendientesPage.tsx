@@ -109,7 +109,7 @@ export function CobrosPendientesPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
+      <h1 className="text-h1">
         Cobros pendientes
       </h1>
 

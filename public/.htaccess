@@ -1,0 +1,11 @@
+# Single-page app: serve index.html for any path that isn't a real
+# file/directory, so React Router's client-side routes (e.g. /clientes,
+# /cobros) work on refresh and direct links instead of 404ing.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>

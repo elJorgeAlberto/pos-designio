@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ShoppingCart, UserPlus, Lock, X } from 'lucide-react'
+import { Plus, ShoppingCart, UserPlus, Wallet, Truck, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
-// §10: FAB anchored in thumb-reach (bottom-right, above safe-area-inset).
-// Scoped to actions that actually exist in the app today — the doc also
-// lists "entrada de dinero" and "compra", neither of which has any
-// screen yet (no gastos/compras module), so they're left out rather
-// than wired to a dead end.
+// BRANDING.md §6: fan-out is "nueva venta, entrada de dinero, agregar
+// cliente, compra" with nueva venta the primary/biggest item. "Compra"
+// routes to the Proveedores directory rather than auto-opening a form —
+// registering a purchase always starts by picking a supplier first, so
+// there's no standalone "new purchase" screen to jump to.
 const actions = [
-  { label: 'Nueva venta', icon: ShoppingCart, to: '/ventas' },
-  { label: 'Agregar cliente', icon: UserPlus, to: '/clientes?new=1' },
-  { label: 'Caja', icon: Lock, to: '/caja' },
+  { label: 'Nueva venta', icon: ShoppingCart, to: '/ventas', primary: true },
+  { label: 'Registrar gasto', icon: Wallet, to: '/gastos?new=1', primary: false },
+  { label: 'Agregar cliente', icon: UserPlus, to: '/clientes?new=1', primary: false },
+  { label: 'Compra a proveedor', icon: Truck, to: '/proveedores', primary: false },
 ]
 
 export function QuickActionsFab() {
@@ -20,8 +22,11 @@ export function QuickActionsFab() {
 
   return (
     <div
-      className="fixed right-4 z-40 flex flex-col items-end gap-3"
-      style={{ bottom: 'max(1.25rem, calc(env(safe-area-inset-bottom) + 1rem))' }}
+      className={cn(
+        'fixed right-4 z-40 flex flex-col items-end gap-3',
+        'bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+5.25rem))]',
+        'lg:bottom-[max(1.5rem,calc(env(safe-area-inset-bottom)+1.25rem))]',
+      )}
     >
       {open && (
         <div className="flex flex-col items-end gap-2">
@@ -33,9 +38,14 @@ export function QuickActionsFab() {
                 setOpen(false)
                 navigate(action.to)
               }}
-              className="flex items-center gap-2 rounded-full bg-card py-2 pr-4 pl-3 text-sm font-medium text-foreground shadow-md ring-1 ring-border"
+              className={cn(
+                'flex items-center gap-2 py-2 pr-4 pl-3 text-sm shadow-md ring-1 ring-border',
+                action.primary
+                  ? 'bg-primary text-primary-foreground text-base font-semibold'
+                  : 'bg-card font-medium text-foreground',
+              )}
             >
-              <action.icon className="size-4" />
+              <action.icon className={action.primary ? 'size-5' : 'size-4'} />
               {action.label}
             </button>
           ))}

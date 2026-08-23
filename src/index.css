@@ -48,7 +48,7 @@
   --secondary: var(--terracota);
   --secondary-foreground: var(--refract);
   --muted: var(--steel);
-  --muted-foreground: var(--smoke);
+  --muted-foreground: #6b6b6b;
   --accent: var(--celadon);
   --accent-foreground: var(--graphite);
   --success: var(--tealix);
@@ -141,7 +141,9 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply font-sans bg-background text-foreground;
+    @apply font-sans bg-background text-foreground text-[15px];
+    line-height: 1.6;
+    letter-spacing: -0.01em;
   }
   html {
     @apply font-sans;
@@ -154,6 +156,58 @@
   [role='button']:not(:disabled) {
     cursor: pointer;
   }
+}
+
+/* BRANDING.md §1 — fixed type scale, not improvised per screen.
+   @utility (not @layer utilities) so these compose with variants like
+   group-data-[size=sm]/card:text-h5, same as built-in utilities. */
+@utility text-h0 {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 14vw, 96px);
+  font-weight: 700;
+  line-height: 1.2;
+}
+@utility text-h1 {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+@utility text-h2 {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+@utility text-h3 {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+@utility text-h4 {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+@utility text-h5 {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+@utility text-dense {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+@utility text-caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
 }
 
 /* Sileo's toast viewport ships at z-index:50 — tied with our Sheet
