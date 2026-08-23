@@ -66,6 +66,13 @@ export const fieldHelp = {
     label: 'El nombre con el que va a aparecer al elegir cómo se cobró o se pagó algo.',
     countsAsCash: 'Actívalo si este medio debe sumarse al efectivo esperado del corte de caja — por ejemplo, vales que cambias por dinero en el día.',
   },
+  dateRange: {
+    start: 'Desde qué fecha quieres ver los movimientos.',
+    end: 'Hasta qué fecha quieres ver los movimientos, incluyéndola.',
+  },
+  ledger: {
+    client: 'Elige un cliente para ver su cuenta con saldo corrido, o "Todos" para ver los movimientos de todos mezclados (sin saldo, porque mezclar cuentas de distintos clientes no tiene sentido contable).',
+  },
   legacyDebt: {
     amount: 'Cuánto te debía este cliente antes de empezar a usar el sistema.',
     dueDate: 'Opcional. Cuándo se comprometió a pagarlo.',

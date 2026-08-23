@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { endOfDay, startOfDay } from '@/lib/dates'
 import { StatTile } from '@/components/StatTile'
 import { BarChart } from '@/components/charts/BarChart'
+import { DateRangeFilter, type DateRange } from '@/components/DateRangeFilter'
 import { SaleTraceabilityDrawer } from '@/components/SaleTraceabilityDrawer'
 import { TablePagination } from '@/components/TablePagination'
 import { usePagination } from '@/lib/use-pagination'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -15,14 +16,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-type Period = 'today' | 'week' | 'month'
-
-const periods: { key: Period; label: string; days: number }[] = [
-  { key: 'today', label: 'Hoy', days: 1 },
-  { key: 'week', label: 'Semana', days: 7 },
-  { key: 'month', label: 'Mes', days: 30 },
-]
 
 type Sale = {
   id: string
@@ -36,24 +29,18 @@ type Sale = {
   methods: string[]
 }
 
-function startOfDay(d: Date) {
-  const copy = new Date(d)
-  copy.setHours(0, 0, 0, 0)
-  return copy
-}
-
 export function SalesHistoryPage() {
-  const [period, setPeriod] = useState<Period>('week')
+  const [range, setRange] = useState<DateRange>(() => {
+    const end = startOfDay(new Date())
+    const start = startOfDay(new Date())
+    start.setDate(start.getDate() - 6)
+    return { start, end }
+  })
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null)
 
-  const days = periods.find((p) => p.key === period)!.days
-  const periodStart = useMemo(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - (days - 1))
-    return startOfDay(d)
-  }, [days])
+  const days = Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000) + 1
 
   function loadSales() {
     setLoading(true)
@@ -62,7 +49,8 @@ export function SalesHistoryPage() {
       .select(
         'id, created_at, total, discount_amount, voided_at, client:clients(name), cajero:users!sales_user_id_fkey(name)',
       )
-      .gte('created_at', periodStart.toISOString())
+      .gte('created_at', range.start.toISOString())
+      .lte('created_at', endOfDay(range.end).toISOString())
       .order('created_at', { ascending: false })
       .then(async ({ data, error }) => {
         if (error || !data) {
@@ -120,7 +108,7 @@ export function SalesHistoryPage() {
   useEffect(() => {
     loadSales()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodStart])
+  }, [range])
 
   const activeSales = sales.filter((s) => !s.voided_at)
   const voidedCount = sales.length - activeSales.length
@@ -129,7 +117,7 @@ export function SalesHistoryPage() {
   const dailyData = useMemo(() => {
     const byDay = new Map<string, number>()
     for (let i = 0; i < days; i++) {
-      const d = new Date(periodStart)
+      const d = new Date(range.start)
       d.setDate(d.getDate() + i)
       byDay.set(d.toDateString(), 0)
     }
@@ -141,7 +129,7 @@ export function SalesHistoryPage() {
       label: new Date(key).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }),
       value,
     }))
-  }, [activeSales, periodStart, days])
+  }, [activeSales, range, days])
 
   const { page, setPage, totalPages, pageItems: pagedSales } = usePagination(sales)
 
@@ -151,19 +139,7 @@ export function SalesHistoryPage() {
         Historial de ventas
       </h1>
 
-      <div className="flex gap-2">
-        {periods.map((p) => (
-          <Button
-            key={p.key}
-            type="button"
-            variant={period === p.key ? 'default' : 'secondary'}
-            size="sm"
-            onClick={() => setPeriod(p.key)}
-          >
-            {p.label}
-          </Button>
-        ))}
-      </div>
+      <DateRangeFilter value={range} onChange={setRange} idPrefix="sales-history-range" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile label="Ventas completadas" value={activeSales.length} isCurrency={false} />

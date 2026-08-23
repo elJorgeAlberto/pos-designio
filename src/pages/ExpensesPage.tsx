@@ -5,10 +5,12 @@ import { Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBranchContext } from '@/lib/use-branch-context'
 import { usePaymentMethods } from '@/lib/use-payment-methods'
+import { endOfDay, startOfDay } from '@/lib/dates'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/FieldLabel'
 import { fieldHelp } from '@/lib/field-help'
+import { DateRangeFilter, type DateRange } from '@/components/DateRangeFilter'
 import { TablePagination } from '@/components/TablePagination'
 import { usePagination } from '@/lib/use-pagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,6 +60,11 @@ export function ExpensesPage() {
   const [open, setOpen] = useState(searchParams.get('new') === '1')
   const [submitting, setSubmitting] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [range, setRange] = useState<DateRange>(() => {
+    const end = startOfDay(new Date())
+    const start = new Date(end.getFullYear(), end.getMonth(), 1)
+    return { start, end }
+  })
 
   const [categoryId, setCategoryId] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
@@ -75,8 +82,9 @@ export function ExpensesPage() {
       .select(
         'id, amount, description, created_at, category:expense_categories(name), payment_method:payment_methods(label)',
       )
+      .gte('created_at', range.start.toISOString())
+      .lte('created_at', endOfDay(range.end).toISOString())
       .order('created_at', { ascending: false })
-      .limit(50)
 
     if (error) {
       sileo.error({ title: 'No se pudieron cargar los gastos.' })
@@ -105,11 +113,15 @@ export function ExpensesPage() {
   }
 
   useEffect(() => {
-    loadExpenses()
     loadCategories()
     if (searchParams.get('new') === '1') setSearchParams({}, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    loadExpenses()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range])
 
   useEffect(() => {
     if (!cashRegisterId) return
@@ -313,9 +325,11 @@ export function ExpensesPage() {
         </Sheet>
       </div>
 
+      <DateRangeFilter value={range} onChange={setRange} idPrefix="expenses-range" />
+
       <Card>
         <CardHeader>
-          <CardTitle>Últimos gastos</CardTitle>
+          <CardTitle>Gastos del periodo</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
