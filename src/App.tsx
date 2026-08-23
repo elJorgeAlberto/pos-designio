@@ -17,6 +17,8 @@ import { SuppliersPage } from '@/pages/SuppliersPage'
 import { PurchasesPage } from '@/pages/PurchasesPage'
 import { BranchesPage } from '@/pages/BranchesPage'
 import { InventoryPage } from '@/pages/InventoryPage'
+import { StaffPage } from '@/pages/StaffPage'
+import { CheckInPage } from '@/pages/CheckInPage'
 
 function App() {
   const { session, loading } = useAuth()
@@ -41,6 +43,8 @@ function App() {
           <Route path="/compras" element={<PurchasesPage />} />
           <Route path="/inventario" element={<InventoryPage />} />
           <Route path="/sucursales" element={<BranchesPage />} />
+          <Route path="/personal" element={<StaffPage />} />
+          <Route path="/checador" element={<CheckInPage />} />
           <Route path="/ticket" element={<TicketSettingsPage />} />
           <Route path="/historial" element={<SalesHistoryPage />} />
         </Route>

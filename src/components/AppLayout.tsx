@@ -18,6 +18,8 @@ import {
   ShoppingBasket,
   Warehouse,
   Store,
+  Contact,
+  Fingerprint,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
@@ -52,6 +54,8 @@ const moreItems = [
   { to: '/proveedores', label: 'Proveedores', icon: Truck },
   { to: '/compras', label: 'Compras', icon: ShoppingBasket },
   { to: '/sucursales', label: 'Sucursales', icon: Store },
+  { to: '/personal', label: 'Personal', icon: Contact },
+  { to: '/checador', label: 'Checador', icon: Fingerprint },
   { to: '/historial', label: 'Historial de ventas', icon: History },
   { to: '/ticket', label: 'Ticket', icon: Receipt },
   { to: '/medios-pago', label: 'Medios de pago', icon: CreditCard },
