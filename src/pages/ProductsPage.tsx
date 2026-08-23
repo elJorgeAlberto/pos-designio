@@ -65,6 +65,7 @@ const emptyForm = {
   barcode: '',
   cost: '',
   price: '',
+  marginPercent: '',
   initialStock: '',
   description: '',
   brand: '',
@@ -142,6 +143,33 @@ export function ProductsPage() {
     })
   }
 
+  function handleCostChange(value: string) {
+    setForm((prev) => {
+      const cost = Number(value) || 0
+      const margin = Number(prev.marginPercent) || 0
+      const price = prev.marginPercent ? (cost * (1 + margin / 100)).toFixed(2) : prev.price
+      return { ...prev, cost: value, price }
+    })
+  }
+
+  function handleMarginChange(value: string) {
+    setForm((prev) => {
+      const cost = Number(prev.cost) || 0
+      const margin = Number(value) || 0
+      const price = cost > 0 && value ? (cost * (1 + margin / 100)).toFixed(2) : prev.price
+      return { ...prev, marginPercent: value, price }
+    })
+  }
+
+  function handlePriceChange(value: string) {
+    setForm((prev) => {
+      const cost = Number(prev.cost) || 0
+      const price = Number(value) || 0
+      const margin = cost > 0 ? (((price - cost) / cost) * 100).toFixed(2) : prev.marginPercent
+      return { ...prev, price: value, marginPercent: margin }
+    })
+  }
+
   function openCreateForm() {
     setEditingId(null)
     setForm(emptyForm)
@@ -159,7 +187,7 @@ export function ProductsPage() {
 
     const { data: full } = await supabase
       .from('products')
-      .select('description, brand, sku')
+      .select('description, brand, sku, margin_percent')
       .eq('id', product.id)
       .single()
 
@@ -176,6 +204,7 @@ export function ProductsPage() {
       barcode: product.barcode ?? '',
       cost: String(product.cost),
       price: String(product.price),
+      marginPercent: full?.margin_percent != null ? String(full.margin_percent) : '',
       initialStock: '',
       description: full?.description ?? '',
       brand: full?.brand ?? '',
@@ -224,6 +253,7 @@ export function ProductsPage() {
       barcode: form.barcode || null,
       cost: Number(form.cost) || 0,
       price: Number(form.price) || 0,
+      margin_percent: form.marginPercent ? Number(form.marginPercent) : null,
       description: form.description || null,
       brand: form.brand || null,
       sku: form.sku || null,
@@ -436,13 +466,20 @@ export function ProductsPage() {
                 <FieldLabel htmlFor="stock" help={fieldHelp.products.initialStock}>
                   Stock inicial
                 </FieldLabel>
-                <Input
-                  id="stock"
-                  type="number"
-                  step="0.001"
-                  value={form.initialStock}
-                  onChange={(e) => setForm({ ...form, initialStock: e.target.value })}
-                />
+                <div className="relative">
+                  <Input
+                    id="stock"
+                    className="pr-12"
+                    type="number"
+                    step="0.001"
+                    inputMode="decimal"
+                    value={form.initialStock}
+                    onChange={(e) => setForm({ ...form, initialStock: e.target.value })}
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+                    {form.unit || '—'}
+                  </span>
+                </div>
               </div>
             )}
 
@@ -459,7 +496,7 @@ export function ProductsPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col gap-2">
                 <FieldLabel htmlFor="cost" help={fieldHelp.products.cost}>
                   Costo
@@ -470,7 +507,20 @@ export function ProductsPage() {
                   step="0.01"
                   required
                   value={form.cost}
-                  onChange={(e) => setForm({ ...form, cost: e.target.value })}
+                  onChange={(e) => handleCostChange(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <FieldLabel htmlFor="margin" help={fieldHelp.products.marginPercent}>
+                  Margen %
+                </FieldLabel>
+                <Input
+                  id="margin"
+                  type="number"
+                  step="0.1"
+                  placeholder="ej. 30"
+                  value={form.marginPercent}
+                  onChange={(e) => handleMarginChange(e.target.value)}
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -483,10 +533,14 @@ export function ProductsPage() {
                   step="0.01"
                   required
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  onChange={(e) => handlePriceChange(e.target.value)}
                 />
               </div>
             </div>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              El costo se actualiza solo con cada compra a proveedor — es siempre el que se usa para
+              calcular la utilidad de una venta.
+            </p>
           </form>
           <SheetFooter>
             <Button type="submit" form="product-form" disabled={submitting}>

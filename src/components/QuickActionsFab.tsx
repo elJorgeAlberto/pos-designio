@@ -5,15 +5,12 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 // BRANDING.md §6: fan-out is "nueva venta, entrada de dinero, agregar
-// cliente, compra" with nueva venta the primary/biggest item. "Compra"
-// routes to the Proveedores directory rather than auto-opening a form —
-// registering a purchase always starts by picking a supplier first, so
-// there's no standalone "new purchase" screen to jump to.
+// cliente, compra" with nueva venta the primary/biggest item.
 const actions = [
   { label: 'Nueva venta', icon: ShoppingCart, to: '/ventas', primary: true },
   { label: 'Registrar gasto', icon: Wallet, to: '/gastos?new=1', primary: false },
   { label: 'Agregar cliente', icon: UserPlus, to: '/clientes?new=1', primary: false },
-  { label: 'Compra a proveedor', icon: Truck, to: '/proveedores', primary: false },
+  { label: 'Compra a proveedor', icon: Truck, to: '/compras', primary: false },
 ]
 
 export function QuickActionsFab() {

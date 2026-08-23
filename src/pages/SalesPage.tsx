@@ -352,13 +352,19 @@ export function SalesPage() {
                   >
                     <Minus />
                   </Button>
-                  <Input
-                    className="h-11 w-16 shrink-0 text-center"
-                    type="number"
-                    step={line.product.sale_type === 'weight' ? '0.001' : '1'}
-                    value={line.quantity}
-                    onChange={(e) => updateQuantity(line.product.id, Number(e.target.value) || 0)}
-                  />
+                  <div className="relative shrink-0">
+                    <Input
+                      className="h-11 w-28 pr-9 text-center text-base"
+                      type="number"
+                      inputMode={line.product.sale_type === 'weight' ? 'decimal' : 'numeric'}
+                      step={line.product.sale_type === 'weight' ? '0.001' : '1'}
+                      value={line.quantity}
+                      onChange={(e) => updateQuantity(line.product.id, Number(e.target.value) || 0)}
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-xs text-muted-foreground">
+                      {line.product.unit}
+                    </span>
+                  </div>
                   <Button
                     type="button"
                     variant="secondary"

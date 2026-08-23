@@ -14,6 +14,9 @@ import { SalesHistoryPage } from '@/pages/SalesHistoryPage'
 import { CobrosPendientesPage } from '@/pages/CobrosPendientesPage'
 import { ExpensesPage } from '@/pages/ExpensesPage'
 import { SuppliersPage } from '@/pages/SuppliersPage'
+import { PurchasesPage } from '@/pages/PurchasesPage'
+import { BranchesPage } from '@/pages/BranchesPage'
+import { InventoryPage } from '@/pages/InventoryPage'
 
 function App() {
   const { session, loading } = useAuth()
@@ -35,6 +38,9 @@ function App() {
           <Route path="/cobros" element={<CobrosPendientesPage />} />
           <Route path="/gastos" element={<ExpensesPage />} />
           <Route path="/proveedores" element={<SuppliersPage />} />
+          <Route path="/compras" element={<PurchasesPage />} />
+          <Route path="/inventario" element={<InventoryPage />} />
+          <Route path="/sucursales" element={<BranchesPage />} />
           <Route path="/ticket" element={<TicketSettingsPage />} />
           <Route path="/historial" element={<SalesHistoryPage />} />
         </Route>

@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { sileo } from 'sileo'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { useBranchContext } from '@/lib/use-branch-context'
 import { usePaymentMethods } from '@/lib/use-payment-methods'
+import { useBranchContext } from '@/lib/use-branch-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -39,14 +40,11 @@ import {
 type Supplier = { id: string; name: string; phone: string | null; notes: string | null; balance: number }
 type PurchaseRow = { id: string; total: number; created_at: string }
 type PaymentRow = { id: string; amount: number; methodLabel: string; created_at: string }
-type Product = { id: string; name: string; unit: string; cost: number }
-type PurchaseLine = { id: string; productId: string; quantity: string; unitCost: string }
 
 export function SuppliersPage() {
-  const { branchId, cashRegisterId } = useBranchContext()
+  const { cashRegisterId } = useBranchContext()
   const { methods: paymentMethods } = usePaymentMethods()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
@@ -63,9 +61,6 @@ export function SuppliersPage() {
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethodId, setPaymentMethodId] = useState('')
   const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId)
-
-  const [purchaseOpen, setPurchaseOpen] = useState(false)
-  const [lines, setLines] = useState<PurchaseLine[]>([])
 
   async function loadSuppliers() {
     setLoading(true)
@@ -90,7 +85,6 @@ export function SuppliersPage() {
 
   useEffect(() => {
     loadSuppliers()
-    supabase.from('products').select('id, name, unit, cost').order('name').then(({ data }) => setProducts(data ?? []))
   }, [])
 
   useEffect(() => {
@@ -194,68 +188,6 @@ export function SuppliersPage() {
     setSubmitting(false)
   }
 
-  function openPurchaseForm() {
-    setLines([{ id: crypto.randomUUID(), productId: '', quantity: '', unitCost: '' }])
-    setPurchaseOpen(true)
-  }
-
-  function addLine() {
-    setLines((prev) => [...prev, { id: crypto.randomUUID(), productId: '', quantity: '', unitCost: '' }])
-  }
-
-  function updateLine(id: string, patch: Partial<PurchaseLine>) {
-    setLines((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)))
-  }
-
-  const purchaseTotal = lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unitCost) || 0), 0)
-
-  async function confirmPurchase() {
-    if (!detailSupplier || !branchId) return
-    const validLines = lines.filter((l) => l.productId && Number(l.quantity) > 0 && Number(l.unitCost) >= 0)
-    if (validLines.length === 0) {
-      sileo.warning({ title: 'Agrega al menos un producto con cantidad y costo.' })
-      return
-    }
-    setSubmitting(true)
-
-    const { data: purchase, error: purchaseError } = await supabase
-      .from('purchases')
-      .insert({ supplier_id: detailSupplier.id, branch_id: branchId })
-      .select('id')
-      .single()
-
-    if (purchaseError || !purchase) {
-      sileo.error({ title: purchaseError?.message ?? 'No se pudo registrar la compra.' })
-      setSubmitting(false)
-      return
-    }
-
-    const { error: itemsError } = await supabase.from('purchase_items').insert(
-      validLines.map((l) => ({
-        purchase_id: purchase.id,
-        product_id: l.productId,
-        quantity: Number(l.quantity),
-        unit_cost: Number(l.unitCost),
-      })),
-    )
-
-    if (itemsError) {
-      sileo.error({ title: itemsError.message })
-      setSubmitting(false)
-      return
-    }
-
-    sileo.success({ title: 'Compra registrada — la existencia ya se actualizó.' })
-    setPurchaseOpen(false)
-    const updated = await loadSuppliers()
-    const fresh = updated.find((s) => s.id === detailSupplier.id)
-    if (fresh) {
-      setDetailSupplier(fresh)
-      openDetail(fresh)
-    }
-    setSubmitting(false)
-  }
-
   const { page, setPage, totalPages, pageItems: pagedSuppliers } = usePagination(suppliers)
 
   return (
@@ -347,8 +279,13 @@ export function SuppliersPage() {
           </SheetHeader>
           <div className="flex flex-col gap-4 overflow-y-auto px-4">
             <div className="flex gap-2">
-              <Button type="button" variant="secondary" className="flex-1" onClick={openPurchaseForm}>
-                <Plus /> Nueva compra
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                render={<Link to={`/compras?supplier=${detailSupplier?.id}`} />}
+              >
+                <ArrowRight /> Nueva compra
               </Button>
               {detailSupplier && (
                 <Button type="button" variant="ghost" size="sm" onClick={() => openEditForm(detailSupplier)}>
@@ -425,98 +362,6 @@ export function SuppliersPage() {
               )}
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={purchaseOpen} onOpenChange={setPurchaseOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Nueva compra — {detailSupplier?.name}</SheetTitle>
-            <SheetDescription>La existencia se actualiza automáticamente al confirmar.</SheetDescription>
-          </SheetHeader>
-          <div className="flex flex-col gap-4 overflow-y-auto px-4">
-            {lines.map((line) => (
-              <div key={line.id} className="flex flex-col gap-2 border-b border-border pb-3">
-                <div className="flex items-center justify-between">
-                  <FieldLabel htmlFor={`product-${line.id}`} help={fieldHelp.suppliers.purchaseProduct}>
-                    Producto
-                  </FieldLabel>
-                  {lines.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setLines((prev) => prev.filter((l) => l.id !== line.id))}
-                    >
-                      <Trash2 className="text-destructive" />
-                    </Button>
-                  )}
-                </div>
-                <Select
-                  value={line.productId || 'none'}
-                  onValueChange={(v) => {
-                    const product = products.find((p) => p.id === v)
-                    updateLine(line.id, {
-                      productId: v === 'none' ? '' : (v ?? ''),
-                      unitCost: product ? String(product.cost) : line.unitCost,
-                    })
-                  }}
-                >
-                  <SelectTrigger id={`product-${line.id}`} className="w-full">
-                    <SelectValue>
-                      {(v: unknown) => products.find((p) => p.id === v)?.name ?? 'Selecciona un producto'}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Selecciona un producto</SelectItem>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex flex-col gap-1">
-                    <FieldLabel htmlFor={`qty-${line.id}`} help={fieldHelp.suppliers.purchaseQuantity}>
-                      Cantidad
-                    </FieldLabel>
-                    <Input
-                      id={`qty-${line.id}`}
-                      type="number"
-                      step="0.001"
-                      value={line.quantity}
-                      onChange={(e) => updateLine(line.id, { quantity: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <FieldLabel htmlFor={`cost-${line.id}`} help={fieldHelp.suppliers.purchaseCost}>
-                      Costo unitario
-                    </FieldLabel>
-                    <Input
-                      id={`cost-${line.id}`}
-                      type="number"
-                      step="0.01"
-                      value={line.unitCost}
-                      onChange={(e) => updateLine(line.id, { unitCost: e.target.value })}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-            <Button type="button" variant="secondary" onClick={addLine}>
-              <Plus /> Agregar producto
-            </Button>
-            <div className="flex items-center justify-between border-t border-border pt-3 text-lg font-semibold">
-              <span>Total</span>
-              <span>${purchaseTotal.toFixed(2)}</span>
-            </div>
-          </div>
-          <SheetFooter>
-            <Button onClick={confirmPurchase} disabled={submitting}>
-              {submitting ? 'Guardando…' : 'Confirmar compra'}
-            </Button>
-          </SheetFooter>
         </SheetContent>
       </Sheet>
     </div>

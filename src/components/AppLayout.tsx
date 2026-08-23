@@ -15,6 +15,9 @@ import {
   Truck,
   Building2,
   CreditCard,
+  ShoppingBasket,
+  Warehouse,
+  Store,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
@@ -44,8 +47,11 @@ const moreItems = [
   { to: '/empresas', label: 'Empresas', icon: Building2 },
   { to: '/cobros', label: 'Cobros pendientes', icon: CalendarClock },
   { to: '/productos', label: 'Productos', icon: Package },
+  { to: '/inventario', label: 'Inventario', icon: Warehouse },
   { to: '/gastos', label: 'Gastos', icon: Wallet },
   { to: '/proveedores', label: 'Proveedores', icon: Truck },
+  { to: '/compras', label: 'Compras', icon: ShoppingBasket },
+  { to: '/sucursales', label: 'Sucursales', icon: Store },
   { to: '/historial', label: 'Historial de ventas', icon: History },
   { to: '/ticket', label: 'Ticket', icon: Receipt },
   { to: '/medios-pago', label: 'Medios de pago', icon: CreditCard },

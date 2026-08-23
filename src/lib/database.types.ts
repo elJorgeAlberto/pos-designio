@@ -85,7 +85,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          company_id: string
+          company_id?: string
           created_at?: string
           id?: string
           name: string
@@ -822,6 +822,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          margin_percent: number | null
           min_stock: number | null
           name: string
           price: number
@@ -838,6 +839,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          margin_percent?: number | null
           min_stock?: number | null
           name: string
           price?: number
@@ -854,6 +856,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          margin_percent?: number | null
           min_stock?: number | null
           name?: string
           price?: number
