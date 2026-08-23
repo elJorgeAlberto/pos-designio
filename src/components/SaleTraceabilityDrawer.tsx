@@ -8,6 +8,16 @@ import { useShareImage } from '@/lib/use-share-image'
 import { Ticket } from '@/components/Ticket'
 import { Button } from '@/components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Drawer,
   DrawerContent,
   DrawerDescription,
@@ -15,13 +25,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer'
-
-const methodLabel: Record<string, string> = {
-  cash: 'Efectivo',
-  card: 'Tarjeta',
-  transfer: 'Transferencia',
-  credit: 'Crédito',
-}
 
 type SaleDetail = {
   id: string
@@ -33,7 +36,7 @@ type SaleDetail = {
   cajeroName: string | null
   voidedByName: string | null
   items: { quantity: number; unit_price: number; unit_cost: number; name: string; unit: string }[]
-  payments: { method: string; amount: number; commitment_date: string | null }[]
+  payments: { methodLabel: string; amount: number; commitment_date: string | null }[]
 }
 
 export function SaleTraceabilityDrawer({
@@ -68,7 +71,7 @@ export function SaleTraceabilityDrawer({
     supabase
       .from('sales')
       .select(
-        'id, created_at, total, discount_amount, voided_at, client:clients(name), cajero:users!sales_user_id_fkey(name), voided_by_user:users!sales_voided_by_fkey(name), sale_items(quantity, unit_price, unit_cost, product:products(name, unit)), sale_payments(method, amount, commitment_date)',
+        'id, created_at, total, discount_amount, voided_at, client:clients(name), cajero:users!sales_user_id_fkey(name), voided_by_user:users!sales_voided_by_fkey(name), sale_items(quantity, unit_price, unit_cost, product:products(name, unit)), sale_payments(amount, commitment_date, payment_method:payment_methods(label))',
       )
       .eq('id', saleId)
       .single()
@@ -100,7 +103,14 @@ export function SaleTraceabilityDrawer({
               unit: product?.unit ?? '',
             }
           }),
-          payments: data.sale_payments,
+          payments: data.sale_payments.map((p) => {
+            const paymentMethod = Array.isArray(p.payment_method) ? p.payment_method[0] : p.payment_method
+            return {
+              methodLabel: paymentMethod?.label ?? '—',
+              amount: p.amount,
+              commitment_date: p.commitment_date,
+            }
+          }),
         })
         setLoading(false)
       })
@@ -136,7 +146,8 @@ export function SaleTraceabilityDrawer({
   const profit = net - cost
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <>
+      <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>Trazabilidad de venta</DrawerTitle>
@@ -201,7 +212,7 @@ export function SaleTraceabilityDrawer({
                 {sale.payments.map((p, i) => (
                   <div key={i} className="flex justify-between text-sm">
                     <span>
-                      {methodLabel[p.method] ?? p.method}
+                      {p.methodLabel}
                       {p.commitment_date &&
                         ` · compromiso ${parseLocalDate(p.commitment_date).toLocaleDateString('es-MX')}`}
                     </span>
@@ -224,7 +235,7 @@ export function SaleTraceabilityDrawer({
                       unit: i.unit,
                       unitPrice: i.unit_price,
                     }))}
-                    payments={sale.payments.map((p) => ({ method: p.method, amount: p.amount }))}
+                    payments={sale.payments.map((p) => ({ method: p.methodLabel, amount: p.amount }))}
                     subtotal={sale.total}
                     discount={sale.discount_amount}
                     total={net}
@@ -232,19 +243,6 @@ export function SaleTraceabilityDrawer({
                 </div>
               )}
 
-              {confirmingVoid && (
-                <div className="flex items-center justify-between gap-2 rounded-lg bg-destructive/10 p-3 text-sm">
-                  <span>¿Cancelar esta venta? El stock se repone.</span>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="destructive" disabled={voiding} onClick={confirmVoid}>
-                      Confirmar
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={() => setConfirmingVoid(false)}>
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -269,6 +267,22 @@ export function SaleTraceabilityDrawer({
           )}
         </DrawerFooter>
       </DrawerContent>
-    </Drawer>
+      </Drawer>
+
+      <AlertDialog open={confirmingVoid} onOpenChange={setConfirmingVoid}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cancelar esta venta?</AlertDialogTitle>
+            <AlertDialogDescription>El stock de los productos vendidos se repone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={voiding} onClick={confirmVoid}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

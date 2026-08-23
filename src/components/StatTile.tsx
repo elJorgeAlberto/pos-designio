@@ -13,6 +13,7 @@ export function StatTile({
   deltaPct,
   deltaGoodDirection = 'up',
   isCurrency = true,
+  suffix,
   onClick,
 }: {
   label: string
@@ -20,6 +21,7 @@ export function StatTile({
   deltaPct?: number | null
   deltaGoodDirection?: 'up' | 'down'
   isCurrency?: boolean
+  suffix?: string
   onClick?: () => void
 }) {
   const hasDelta = deltaPct != null && Number.isFinite(deltaPct)
@@ -39,11 +41,9 @@ export function StatTile({
       <CardContent className="flex items-center justify-between gap-2 py-4">
         <div className="flex flex-col gap-1">
           <span className="text-sm text-muted-foreground">{label}</span>
-          <span
-            style={{ fontFamily: 'var(--font-heading)' }}
-            className="text-2xl font-semibold tabular-nums"
-          >
+          <span className="text-h2 tabular-nums">
             {isCurrency ? formatCompact(value) : value.toLocaleString('es-MX')}
+            {suffix}
           </span>
           {hasDelta && (
             <span

@@ -10,12 +10,13 @@ export const CollectionReceipt = forwardRef<
     date: Date
     clientName: string
     amountCollected: number
+    paymentMethodLabel: string
     resolution:
       | { kind: 'paid' }
       | { kind: 'renegotiated'; amount: number; dueDate: string | null }
       | { kind: 'unpaid_remainder'; amount: number; dueDate: string | null }
   }
->(({ companyName, logoUrl, message, date, clientName, amountCollected, resolution }, ref) => {
+>(({ companyName, logoUrl, message, date, clientName, amountCollected, paymentMethodLabel, resolution }, ref) => {
   return (
     <div
       ref={ref}
@@ -37,6 +38,10 @@ export const CollectionReceipt = forwardRef<
         <div className="flex justify-between">
           <span>Abono a cuenta</span>
           <span>${amountCollected.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>Medio de pago</span>
+          <span>{paymentMethodLabel}</span>
         </div>
       </div>
       <div

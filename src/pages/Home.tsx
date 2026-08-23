@@ -23,18 +23,14 @@ const periods: { key: Period; label: string; days: number }[] = [
 // Validated categorical slots (dataviz skill's documented default
 // palette) — our brand hues don't have four distinct, chart-safe tones
 // for payment-method identity, so this borrows the skill's reference
-// instance rather than eyeballing brand-adjacent colors.
+// instance rather than eyeballing brand-adjacent colors. Keyed by the
+// native payment_methods.key — any custom method the tenant adds falls
+// back to grey rather than trying to auto-assign it a validated hue.
 const methodColor: Record<string, string> = {
   cash: '#2a78d6',
   card: '#eb6834',
   transfer: '#1baf7a',
   credit: '#eda100',
-}
-const methodLabel: Record<string, string> = {
-  cash: 'Efectivo',
-  card: 'Tarjeta',
-  transfer: 'Transferencia',
-  credit: 'Crédito',
 }
 
 function startOfDay(d: Date) {
@@ -53,7 +49,7 @@ export function Home() {
   const [salesDetail, setSalesDetail] = useState<SaleDetailRow[]>([])
   const [previousTotal, setPreviousTotal] = useState(0)
   const [topProducts, setTopProducts] = useState<{ label: string; value: number }[]>([])
-  const [methodTotals, setMethodTotals] = useState<Record<string, number>>({})
+  const [methodTotals, setMethodTotals] = useState<Record<string, { label: string; value: number }>>({})
   const [receivableRows, setReceivableRows] = useState<ReceivableRow[]>([])
   const [expensesTotal, setExpensesTotal] = useState(0)
   const [payablesTotal, setPayablesTotal] = useState(0)
@@ -98,7 +94,10 @@ export function Home() {
             .from('sale_items')
             .select('sale_id, quantity, unit_price, unit_cost, product:products(name)')
             .in('sale_id', currentIds),
-          supabase.from('sale_payments').select('sale_id, method, amount').in('sale_id', currentIds),
+          supabase
+            .from('sale_payments')
+            .select('sale_id, amount, payment_method:payment_methods(key, label)')
+            .in('sale_id', currentIds),
         ])
 
         const byProduct = new Map<string, number>()
@@ -115,11 +114,14 @@ export function Home() {
             .map(([label, value]) => ({ label, value })),
         )
 
-        const byMethod: Record<string, number> = {}
+        const byMethod: Record<string, { label: string; value: number }> = {}
         const methodsBySale = new Map<string, string[]>()
         for (const p of payments ?? []) {
-          byMethod[p.method] = (byMethod[p.method] ?? 0) + p.amount
-          methodsBySale.set(p.sale_id, [...(methodsBySale.get(p.sale_id) ?? []), p.method])
+          const paymentMethod = Array.isArray(p.payment_method) ? p.payment_method[0] : p.payment_method
+          const key = paymentMethod?.key ?? 'unknown'
+          const label = paymentMethod?.label ?? '—'
+          byMethod[key] = { label, value: (byMethod[key]?.value ?? 0) + p.amount }
+          methodsBySale.set(p.sale_id, [...(methodsBySale.get(p.sale_id) ?? []), label])
         }
         setMethodTotals(byMethod)
 
@@ -212,16 +214,16 @@ export function Home() {
     }))
   }, [salesDetail, periodStart, days])
 
-  const paymentSegments = Object.entries(methodTotals).map(([method, value]) => ({
-    label: methodLabel[method] ?? method,
+  const paymentSegments = Object.entries(methodTotals).map(([key, { label, value }]) => ({
+    label,
     value,
-    color: methodColor[method] ?? '#999',
+    color: methodColor[key] ?? '#999',
   }))
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
+        <h1 className="text-h1">
           Bienvenido
         </h1>
         {profile && (

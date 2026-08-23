@@ -4,6 +4,7 @@ import { Minus, Plus, Trash2, ShoppingCart, Share2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 import { useBranchContext } from '@/lib/use-branch-context'
+import { usePaymentMethods } from '@/lib/use-payment-methods'
 import { useShareImage } from '@/lib/use-share-image'
 import { Ticket } from '@/components/Ticket'
 import { Button } from '@/components/ui/button'
@@ -41,16 +42,8 @@ type CartLine = {
   quantity: number
 }
 
-type PaymentMethod = 'cash' | 'card' | 'transfer' | 'credit'
-type PaymentLine = { id: string; method: PaymentMethod; amount: string; commitmentDate: string }
+type PaymentLine = { id: string; paymentMethodId: string; amount: string; commitmentDate: string }
 type Client = { id: string; name: string }
-
-const paymentMethodLabel: Record<PaymentMethod, string> = {
-  cash: 'Efectivo',
-  card: 'Tarjeta',
-  transfer: 'Transferencia',
-  credit: 'Crédito',
-}
 
 const quickCommitmentDates = [
   { label: 'Mañana', days: 1 },
@@ -64,6 +57,7 @@ export function SalesPage() {
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<CartLine[]>([])
   const { branchId, cashRegisterId } = useBranchContext()
+  const { methods: paymentMethods } = usePaymentMethods()
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionChecked, setSessionChecked] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -86,7 +80,11 @@ export function SalesPage() {
   } | null>(null)
   const { ref: ticketRef, shareImage } = useShareImage()
 
-  const hasCredit = payments.some((p) => p.method === 'credit')
+  const defaultCashMethodId =
+    paymentMethods.find((m) => m.key === 'cash')?.id ?? paymentMethods[0]?.id ?? ''
+  const hasCredit = payments.some(
+    (p) => paymentMethods.find((m) => m.id === p.paymentMethodId)?.is_credit,
+  )
 
   const total = useMemo(
     () => cart.reduce((sum, line) => sum + line.quantity * line.product.price, 0),
@@ -175,7 +173,9 @@ export function SalesPage() {
     }
     setClientId('')
     setDiscount('')
-    setPayments([{ id: crypto.randomUUID(), method: 'cash', amount: total.toFixed(2), commitmentDate: '' }])
+    setPayments([
+      { id: crypto.randomUUID(), paymentMethodId: defaultCashMethodId, amount: total.toFixed(2), commitmentDate: '' },
+    ])
     setCheckoutOpen(true)
   }
 
@@ -184,7 +184,7 @@ export function SalesPage() {
       ...prev,
       {
         id: crypto.randomUUID(),
-        method: 'cash',
+        paymentMethodId: defaultCashMethodId,
         amount: remaining > 0 ? remaining.toFixed(2) : '0',
         commitmentDate: '',
       },
@@ -242,12 +242,15 @@ export function SalesPage() {
     }
 
     const { error: paymentsError } = await supabase.from('sale_payments').insert(
-      payments.map((p) => ({
-        sale_id: sale.id,
-        method: p.method,
-        amount: Number(p.amount) || 0,
-        commitment_date: p.method === 'credit' && p.commitmentDate ? p.commitmentDate : null,
-      })),
+      payments.map((p) => {
+        const isCredit = paymentMethods.find((m) => m.id === p.paymentMethodId)?.is_credit
+        return {
+          sale_id: sale.id,
+          payment_method_id: p.paymentMethodId,
+          amount: Number(p.amount) || 0,
+          commitment_date: isCredit && p.commitmentDate ? p.commitmentDate : null,
+        }
+      }),
     )
 
     if (paymentsError) {
@@ -265,7 +268,10 @@ export function SalesPage() {
         unit: line.product.unit,
         unitPrice: line.product.price,
       })),
-      payments: payments.map((p) => ({ method: p.method, amount: Number(p.amount) || 0 })),
+      payments: payments.map((p) => ({
+        method: paymentMethods.find((m) => m.id === p.paymentMethodId)?.label ?? '—',
+        amount: Number(p.amount) || 0,
+      })),
       subtotal: total,
       discount: discountAmount,
       total: amountDue,
@@ -394,17 +400,18 @@ export function SalesPage() {
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Cobrar</SheetTitle>
-            <SheetDescription>
-              {discountAmount > 0 ? (
-                <>
-                  Subtotal: ${total.toFixed(2)} · Descuento: -${discountAmount.toFixed(2)} · Total a
-                  pagar: ${amountDue.toFixed(2)}
-                </>
-              ) : (
-                <>Total a pagar: ${amountDue.toFixed(2)}</>
-              )}
-            </SheetDescription>
+            {discountAmount > 0 && (
+              <SheetDescription>
+                Subtotal: ${total.toFixed(2)} · Descuento: -${discountAmount.toFixed(2)}
+              </SheetDescription>
+            )}
           </SheetHeader>
+          {/* BRANDING.md §8: el total en la pantalla de cobro es el
+              elemento visualmente más importante — H0/Handjet/--primary. */}
+          <div className="flex flex-col items-center gap-0.5 border-b border-border px-4 pb-4">
+            <span className="text-caption text-muted-foreground">Total a pagar</span>
+            <span className="text-h0 text-primary">${amountDue.toFixed(2)}</span>
+          </div>
           <div className="flex flex-col gap-4 overflow-y-auto px-4">
             <div className="flex flex-col gap-2">
               <FieldLabel htmlFor="sale-discount" help={fieldHelp.sales.discount}>
@@ -462,23 +469,26 @@ export function SalesPage() {
                   )}
                 </div>
                 <Select
-                  value={payment.method}
+                  value={payment.paymentMethodId}
                   onValueChange={(v) =>
                     setPayments((prev) =>
-                      prev.map((p, i) => (i === index ? { ...p, method: v as PaymentMethod } : p)),
+                      prev.map((p, i) => (i === index ? { ...p, paymentMethodId: v ?? '' } : p)),
                     )
                   }
                 >
                   <SelectTrigger id={`method-${payment.id}`} className="w-full">
                     <SelectValue>
-                      {(value: unknown) => paymentMethodLabel[value as PaymentMethod]}
+                      {(value: unknown) =>
+                        paymentMethods.find((m) => m.id === value)?.label ?? 'Selecciona un medio'
+                      }
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Efectivo</SelectItem>
-                    <SelectItem value="card">Tarjeta</SelectItem>
-                    <SelectItem value="transfer">Transferencia</SelectItem>
-                    <SelectItem value="credit">Crédito</SelectItem>
+                    {paymentMethods.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FieldLabel htmlFor={`amount-${payment.id}`} help={fieldHelp.sales.paymentAmount}>
@@ -495,7 +505,7 @@ export function SalesPage() {
                     )
                   }
                 />
-                {payment.method === 'credit' && (
+                {paymentMethods.find((m) => m.id === payment.paymentMethodId)?.is_credit && (
                   <>
                     <FieldLabel
                       htmlFor={`commitment-${payment.id}`}

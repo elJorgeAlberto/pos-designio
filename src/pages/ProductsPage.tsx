@@ -11,6 +11,8 @@ import { fieldHelp } from '@/lib/field-help'
 import { CategoryPicker } from '@/components/CategoryPicker'
 import { ProductImageGallery, type GalleryImage } from '@/components/ProductImageGallery'
 import { ProductStockSheet } from '@/components/ProductStockSheet'
+import { TablePagination } from '@/components/TablePagination'
+import { usePagination } from '@/lib/use-pagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -277,10 +279,12 @@ export function ProductsPage() {
     [products],
   )
 
+  const { page, setPage, totalPages, pageItems: pagedProducts } = usePagination(products)
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
+        <h1 className="text-h1">
           Productos
         </h1>
         <Button onClick={openCreateForm}>
@@ -515,7 +519,7 @@ export function ProductsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product) => (
+                {pagedProducts.map((product) => (
                   <TableRow key={product.id}>
                     <TableCell>
                       {product.primaryImageUrl ? (
@@ -565,6 +569,8 @@ export function ProductsPage() {
           )}
         </CardContent>
       </Card>
+
+      <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       <ProductStockSheet
         open={!!stockTarget}

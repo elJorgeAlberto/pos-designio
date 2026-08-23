@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase'
 import { StatTile } from '@/components/StatTile'
 import { BarChart } from '@/components/charts/BarChart'
 import { SaleTraceabilityDrawer } from '@/components/SaleTraceabilityDrawer'
+import { TablePagination } from '@/components/TablePagination'
+import { usePagination } from '@/lib/use-pagination'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -21,13 +23,6 @@ const periods: { key: Period; label: string; days: number }[] = [
   { key: 'week', label: 'Semana', days: 7 },
   { key: 'month', label: 'Mes', days: 30 },
 ]
-
-const methodLabel: Record<string, string> = {
-  cash: 'Efectivo',
-  card: 'Tarjeta',
-  transfer: 'Transferencia',
-  credit: 'Crédito',
-}
 
 type Sale = {
   id: string
@@ -85,7 +80,10 @@ export function SalesHistoryPage() {
 
         const [{ data: items }, { data: payments }] = await Promise.all([
           supabase.from('sale_items').select('sale_id, quantity, unit_cost').in('sale_id', ids),
-          supabase.from('sale_payments').select('sale_id, method').in('sale_id', ids),
+          supabase
+            .from('sale_payments')
+            .select('sale_id, payment_method:payment_methods(label)')
+            .in('sale_id', ids),
         ])
 
         const costBySale = new Map<string, number>()
@@ -94,7 +92,8 @@ export function SalesHistoryPage() {
         }
         const methodsBySale = new Map<string, string[]>()
         for (const p of payments ?? []) {
-          methodsBySale.set(p.sale_id, [...(methodsBySale.get(p.sale_id) ?? []), p.method])
+          const paymentMethod = Array.isArray(p.payment_method) ? p.payment_method[0] : p.payment_method
+          methodsBySale.set(p.sale_id, [...(methodsBySale.get(p.sale_id) ?? []), paymentMethod?.label ?? '—'])
         }
 
         setSales(
@@ -144,9 +143,11 @@ export function SalesHistoryPage() {
     }))
   }, [activeSales, periodStart, days])
 
+  const { page, setPage, totalPages, pageItems: pagedSales } = usePagination(sales)
+
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
+      <h1 className="text-h1">
         Historial de ventas
       </h1>
 
@@ -203,7 +204,7 @@ export function SalesHistoryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sales.map((sale) => {
+                  {pagedSales.map((sale) => {
                     const net = sale.total - sale.discount_amount
                     const profit = net - sale.cost
                     return (
@@ -214,7 +215,7 @@ export function SalesHistoryPage() {
                       >
                         <TableCell>{new Date(sale.created_at).toLocaleString('es-MX')}</TableCell>
                         <TableCell>{sale.clientName ?? 'Sin cliente'}</TableCell>
-                        <TableCell>{sale.methods.map((m) => methodLabel[m] ?? m).join(' + ')}</TableCell>
+                        <TableCell>{sale.methods.join(' + ')}</TableCell>
                         <TableCell>${net.toFixed(2)}</TableCell>
                         <TableCell className={profit >= 0 ? 'text-success' : 'text-destructive'}>
                           ${profit.toFixed(2)}
@@ -236,6 +237,8 @@ export function SalesHistoryPage() {
           )}
         </CardContent>
       </Card>
+
+      <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       <SaleTraceabilityDrawer
         open={!!selectedSaleId}

@@ -3,6 +3,8 @@ import { sileo } from 'sileo'
 import { Share2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { useBranchContext } from '@/lib/use-branch-context'
+import { usePaymentMethods } from '@/lib/use-payment-methods'
 import { parseLocalDate } from '@/lib/dates'
 import { useShareImage } from '@/lib/use-share-image'
 import { FieldLabel } from '@/components/FieldLabel'
@@ -10,6 +12,13 @@ import { fieldHelp } from '@/lib/field-help'
 import { CollectionReceipt } from '@/components/CollectionReceipt'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -52,8 +61,12 @@ export function CollectDebtSheet({
   onCollected: () => void
 }) {
   const { profile } = useAuth()
+  const { cashRegisterId } = useBranchContext()
+  const { methods: paymentMethods } = usePaymentMethods()
   const [step, setStep] = useState<Step>('amount')
   const [amount, setAmount] = useState('')
+  const [paymentMethodId, setPaymentMethodId] = useState('')
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [newDueDate, setNewDueDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [collected, setCollected] = useState(0)
@@ -64,10 +77,13 @@ export function CollectDebtSheet({
   })
   const { ref: receiptRef, shareImage } = useShareImage()
 
+  const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId)
+
   useEffect(() => {
     if (!open || !commitment) return
     setStep('amount')
     setAmount(commitment.amount.toFixed(2))
+    setPaymentMethodId(paymentMethods.find((m) => m.key === 'cash')?.id ?? paymentMethods[0]?.id ?? '')
     setNewDueDate('')
     setResolution(null)
     supabase
@@ -77,7 +93,19 @@ export function CollectDebtSheet({
       .then(({ data }) =>
         setTicketSettings({ logoUrl: data?.logo_url ?? null, message: data?.message ?? null }),
       )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, commitment])
+
+  useEffect(() => {
+    if (!cashRegisterId) return
+    supabase
+      .from('cash_register_sessions')
+      .select('id')
+      .eq('cash_register_id', cashRegisterId)
+      .is('closed_at', null)
+      .maybeSingle()
+      .then(({ data }) => setSessionId(data?.id ?? null))
+  }, [cashRegisterId])
 
   if (!commitment) return null
 
@@ -87,6 +115,10 @@ export function CollectDebtSheet({
   function submitAmount() {
     if (entered <= 0 || entered > commitment!.amount + 0.01) {
       sileo.warning({ title: 'Captura un monto válido.' })
+      return
+    }
+    if (!paymentMethodId) {
+      sileo.warning({ title: 'Selecciona con qué medio de pago se recibió el abono.' })
       return
     }
     if (remainder > 0.01) {
@@ -101,8 +133,10 @@ export function CollectDebtSheet({
     const { data, error } = await supabase.rpc('collect_debt', {
       p_commitment_id: commitment!.id,
       p_amount: entered,
+      p_payment_method_id: paymentMethodId,
       p_authorize_remainder: authorizeRemainder,
       p_new_due_date: dueDate ?? undefined,
+      p_cash_register_session_id: selectedPaymentMethod?.is_cash ? (sessionId ?? undefined) : undefined,
     })
 
     if (error || !data) {
@@ -150,6 +184,23 @@ export function CollectDebtSheet({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
+              <FieldLabel htmlFor="collect-method" help={fieldHelp.collections.paymentMethod}>
+                Medio de pago
+              </FieldLabel>
+              <Select value={paymentMethodId} onValueChange={(v) => setPaymentMethodId(v ?? '')}>
+                <SelectTrigger id="collect-method" className="w-full">
+                  <SelectValue>
+                    {(v: unknown) => paymentMethods.find((m) => m.id === v)?.label ?? 'Selecciona un medio'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentMethods.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <SheetFooter>
               <Button onClick={submitAmount} disabled={submitting}>
@@ -229,6 +280,7 @@ export function CollectDebtSheet({
                 date={new Date()}
                 clientName={clientName}
                 amountCollected={collected}
+                paymentMethodLabel={selectedPaymentMethod?.label ?? '—'}
                 resolution={resolution}
               />
             </div>

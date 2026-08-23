@@ -212,6 +212,62 @@ export type Database = {
           },
         ]
       }
+      client_organizations: {
+        Row: {
+          address: string | null
+          company_id: string
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          legal_name: string
+          notes: string | null
+          phone: string | null
+          postal_code: string | null
+          tax_id: string | null
+          tax_regime: string | null
+          trade_name: string | null
+        }
+        Insert: {
+          address?: string | null
+          company_id?: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          legal_name: string
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          tax_id?: string | null
+          tax_regime?: string | null
+          trade_name?: string | null
+        }
+        Update: {
+          address?: string | null
+          company_id?: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          legal_name?: string
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          tax_id?: string | null
+          tax_regime?: string | null
+          trade_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_organizations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           active: boolean
@@ -223,6 +279,8 @@ export type Database = {
           latitude: number | null
           longitude: number | null
           name: string
+          organization_id: string | null
+          phone: string | null
         }
         Insert: {
           active?: boolean
@@ -234,6 +292,8 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           name: string
+          organization_id?: string | null
+          phone?: string | null
         }
         Update: {
           active?: boolean
@@ -245,6 +305,8 @@ export type Database = {
           latitude?: number | null
           longitude?: number | null
           name?: string
+          organization_id?: string | null
+          phone?: string | null
         }
         Relationships: [
           {
@@ -254,34 +316,54 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       collections: {
         Row: {
           amount: number
+          cash_register_session_id: string | null
           client_id: string
           created_at: string
           debt_commitment_id: string | null
           id: string
-          sale_id: string
+          payment_method_id: string
+          sale_id: string | null
         }
         Insert: {
           amount: number
+          cash_register_session_id?: string | null
           client_id: string
           created_at?: string
           debt_commitment_id?: string | null
           id?: string
-          sale_id: string
+          payment_method_id: string
+          sale_id?: string | null
         }
         Update: {
           amount?: number
+          cash_register_session_id?: string | null
           client_id?: string
           created_at?: string
           debt_commitment_id?: string | null
           id?: string
-          sale_id?: string
+          payment_method_id?: string
+          sale_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "collections_cash_register_session_id_fkey"
+            columns: ["cash_register_session_id"]
+            isOneToOne: false
+            referencedRelation: "cash_register_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "collections_client_id_fkey"
             columns: ["client_id"]
@@ -294,6 +376,13 @@ export type Database = {
             columns: ["debt_commitment_id"]
             isOneToOne: false
             referencedRelation: "debt_commitments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "collections_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
           {
@@ -347,9 +436,10 @@ export type Database = {
           created_at: string
           due_date: string | null
           id: string
+          note: string | null
           parent_commitment_id: string | null
           resolved_at: string | null
-          sale_id: string
+          sale_id: string | null
           status: string
         }
         Insert: {
@@ -358,9 +448,10 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           id?: string
+          note?: string | null
           parent_commitment_id?: string | null
           resolved_at?: string | null
-          sale_id: string
+          sale_id?: string | null
           status?: string
         }
         Update: {
@@ -369,9 +460,10 @@ export type Database = {
           created_at?: string
           due_date?: string | null
           id?: string
+          note?: string | null
           parent_commitment_id?: string | null
           resolved_at?: string | null
-          sale_id?: string
+          sale_id?: string | null
           status?: string
         }
         Relationships: [
@@ -433,7 +525,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
-          method: string
+          payment_method_id: string
           user_id: string
         }
         Insert: {
@@ -444,7 +536,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
-          method: string
+          payment_method_id: string
           user_id?: string
         }
         Update: {
@@ -455,7 +547,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
-          method?: string
+          payment_method_id?: string
           user_id?: string
         }
         Relationships: [
@@ -478,6 +570,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
           {
@@ -543,6 +642,50 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          active: boolean
+          company_id: string
+          created_at: string
+          id: string
+          is_cash: boolean
+          is_credit: boolean
+          is_system: boolean
+          key: string
+          label: string
+        }
+        Insert: {
+          active?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_cash?: boolean
+          is_credit?: boolean
+          is_system?: boolean
+          key: string
+          label: string
+        }
+        Update: {
+          active?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_cash?: boolean
+          is_credit?: boolean
+          is_system?: boolean
+          key?: string
+          label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -933,7 +1076,7 @@ export type Database = {
           commitment_date: string | null
           created_at: string
           id: string
-          method: string
+          payment_method_id: string
           sale_id: string
         }
         Insert: {
@@ -941,7 +1084,7 @@ export type Database = {
           commitment_date?: string | null
           created_at?: string
           id?: string
-          method: string
+          payment_method_id: string
           sale_id: string
         }
         Update: {
@@ -949,10 +1092,17 @@ export type Database = {
           commitment_date?: string | null
           created_at?: string
           id?: string
-          method?: string
+          payment_method_id?: string
           sale_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sale_payments_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sale_payments_sale_id_fkey"
             columns: ["sale_id"]
@@ -1065,7 +1215,7 @@ export type Database = {
           cash_register_session_id: string | null
           created_at: string
           id: string
-          method: string
+          payment_method_id: string
           purchase_id: string | null
           supplier_id: string
         }
@@ -1074,7 +1224,7 @@ export type Database = {
           cash_register_session_id?: string | null
           created_at?: string
           id?: string
-          method: string
+          payment_method_id: string
           purchase_id?: string | null
           supplier_id: string
         }
@@ -1083,7 +1233,7 @@ export type Database = {
           cash_register_session_id?: string | null
           created_at?: string
           id?: string
-          method?: string
+          payment_method_id?: string
           purchase_id?: string | null
           supplier_id?: string
         }
@@ -1093,6 +1243,13 @@ export type Database = {
             columns: ["cash_register_session_id"]
             isOneToOne: false
             referencedRelation: "cash_register_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_payments_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
           {
@@ -1258,31 +1415,61 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      collect_debt: {
-        Args: {
-          p_amount: number
-          p_authorize_remainder?: boolean
-          p_commitment_id: string
-          p_new_due_date?: string
-        }
-        Returns: {
-          amount: number
-          client_id: string
-          created_at: string
-          due_date: string | null
-          id: string
-          parent_commitment_id: string | null
-          resolved_at: string | null
-          sale_id: string
-          status: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "debt_commitments"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      collect_debt:
+        | {
+            Args: {
+              p_amount: number
+              p_authorize_remainder?: boolean
+              p_commitment_id: string
+              p_new_due_date?: string
+            }
+            Returns: {
+              amount: number
+              client_id: string
+              created_at: string
+              due_date: string | null
+              id: string
+              note: string | null
+              parent_commitment_id: string | null
+              resolved_at: string | null
+              sale_id: string | null
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "debt_commitments"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_amount: number
+              p_authorize_remainder?: boolean
+              p_cash_register_session_id?: string
+              p_commitment_id: string
+              p_new_due_date?: string
+              p_payment_method_id: string
+            }
+            Returns: {
+              amount: number
+              client_id: string
+              created_at: string
+              due_date: string | null
+              id: string
+              note: string | null
+              parent_commitment_id: string | null
+              resolved_at: string | null
+              sale_id: string | null
+              status: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "debt_commitments"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       current_company_id: { Args: never; Returns: string }
       has_permission: { Args: { permission_key: string }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }

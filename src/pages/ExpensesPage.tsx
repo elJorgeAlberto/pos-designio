@@ -1,12 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { sileo } from 'sileo'
 import { Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBranchContext } from '@/lib/use-branch-context'
+import { usePaymentMethods } from '@/lib/use-payment-methods'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/FieldLabel'
 import { fieldHelp } from '@/lib/field-help'
+import { TablePagination } from '@/components/TablePagination'
+import { usePagination } from '@/lib/use-pagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -36,7 +40,7 @@ import {
 type ExpenseRow = {
   id: string
   amount: number
-  method: string
+  methodLabel: string
   description: string | null
   created_at: string
   categoryName: string | null
@@ -44,14 +48,14 @@ type ExpenseRow = {
 
 type Category = { id: string; name: string }
 
-const methodLabel: Record<string, string> = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' }
-
 export function ExpensesPage() {
   const { branchId, cashRegisterId } = useBranchContext()
+  const { methods: paymentMethods } = usePaymentMethods()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(searchParams.get('new') === '1')
   const [submitting, setSubmitting] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
 
@@ -59,14 +63,18 @@ export function ExpensesPage() {
   const [newCategoryName, setNewCategoryName] = useState('')
   const [addingCategory, setAddingCategory] = useState(false)
   const [amount, setAmount] = useState('')
-  const [method, setMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
+  const [paymentMethodId, setPaymentMethodId] = useState('')
   const [description, setDescription] = useState('')
+
+  const selectedMethod = paymentMethods.find((m) => m.id === paymentMethodId)
 
   async function loadExpenses() {
     setLoading(true)
     const { data, error } = await supabase
       .from('expenses')
-      .select('id, amount, method, description, created_at, category:expense_categories(name)')
+      .select(
+        'id, amount, description, created_at, category:expense_categories(name), payment_method:payment_methods(label)',
+      )
       .order('created_at', { ascending: false })
       .limit(50)
 
@@ -76,10 +84,11 @@ export function ExpensesPage() {
       setExpenses(
         (data ?? []).map((e) => {
           const category = Array.isArray(e.category) ? e.category[0] : e.category
+          const paymentMethod = Array.isArray(e.payment_method) ? e.payment_method[0] : e.payment_method
           return {
             id: e.id,
             amount: e.amount,
-            method: e.method,
+            methodLabel: paymentMethod?.label ?? '—',
             description: e.description,
             created_at: e.created_at,
             categoryName: category?.name ?? null,
@@ -98,6 +107,8 @@ export function ExpensesPage() {
   useEffect(() => {
     loadExpenses()
     loadCategories()
+    if (searchParams.get('new') === '1') setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -114,7 +125,7 @@ export function ExpensesPage() {
   function openForm() {
     setCategoryId('')
     setAmount('')
-    setMethod('cash')
+    setPaymentMethodId(paymentMethods.find((m) => m.key === 'cash')?.id ?? paymentMethods[0]?.id ?? '')
     setDescription('')
     setAddingCategory(false)
     setNewCategoryName('')
@@ -145,7 +156,7 @@ export function ExpensesPage() {
       sileo.error({ title: 'No se encontró una sucursal para tu usuario.' })
       return
     }
-    if (method === 'cash' && !sessionId) {
+    if (selectedMethod?.is_cash && !sessionId) {
       sileo.warning({ title: 'Abre la caja antes de registrar un gasto en efectivo.' })
       return
     }
@@ -154,8 +165,8 @@ export function ExpensesPage() {
     const { error } = await supabase.from('expenses').insert({
       branch_id: branchId,
       category_id: categoryId || null,
-      cash_register_session_id: method === 'cash' ? sessionId : null,
-      method,
+      cash_register_session_id: selectedMethod?.is_cash ? sessionId : null,
+      payment_method_id: paymentMethodId,
       amount: Number(amount) || 0,
       description: description || null,
     })
@@ -170,10 +181,12 @@ export function ExpensesPage() {
     setSubmitting(false)
   }
 
+  const { page, setPage, totalPages, pageItems: pagedExpenses } = usePagination(expenses)
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
+        <h1 className="text-h1">
           Gastos
         </h1>
         <Sheet open={open} onOpenChange={setOpen}>
@@ -241,17 +254,21 @@ export function ExpensesPage() {
                 <FieldLabel htmlFor="expense-method" help={fieldHelp.expenses.method}>
                   Método de pago
                 </FieldLabel>
-                <Select value={method} onValueChange={(v) => setMethod(v as 'cash' | 'card' | 'transfer')}>
+                <Select value={paymentMethodId} onValueChange={(v) => setPaymentMethodId(v ?? '')}>
                   <SelectTrigger id="expense-method" className="w-full">
-                    <SelectValue>{(v: unknown) => methodLabel[v as string]}</SelectValue>
+                    <SelectValue>
+                      {(v: unknown) => paymentMethods.find((m) => m.id === v)?.label ?? 'Selecciona un medio'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="cash">Efectivo</SelectItem>
-                    <SelectItem value="card">Tarjeta</SelectItem>
-                    <SelectItem value="transfer">Transferencia</SelectItem>
+                    {paymentMethods.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                {method === 'cash' && !sessionId && (
+                {selectedMethod?.is_cash && !sessionId && (
                   <p className="text-xs text-destructive">
                     La caja está cerrada — ábrela antes de registrar un gasto en efectivo.
                   </p>
@@ -287,7 +304,7 @@ export function ExpensesPage() {
               <Button
                 type="submit"
                 form="expense-form"
-                disabled={submitting || (method === 'cash' && !sessionId)}
+                disabled={submitting || !!(selectedMethod?.is_cash && !sessionId)}
               >
                 {submitting ? 'Guardando…' : 'Registrar gasto'}
               </Button>
@@ -316,14 +333,14 @@ export function ExpensesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map((e) => (
+                {pagedExpenses.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell>{new Date(e.created_at).toLocaleString('es-MX')}</TableCell>
                     <TableCell>
                       {e.categoryName ?? '—'}
                       {e.description && ` · ${e.description}`}
                     </TableCell>
-                    <TableCell>{methodLabel[e.method] ?? e.method}</TableCell>
+                    <TableCell>{e.methodLabel}</TableCell>
                     <TableCell>${e.amount.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
@@ -332,6 +349,8 @@ export function ExpensesPage() {
           )}
         </CardContent>
       </Card>
+
+      <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   )
 }

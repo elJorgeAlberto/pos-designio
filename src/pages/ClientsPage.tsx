@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { sileo } from 'sileo'
-import { Plus, MapPin, Pencil, Archive, ArchiveRestore } from 'lucide-react'
+import { Plus, MapPin, Pencil } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { parseLocalDate } from '@/lib/dates'
 import { Button } from '@/components/ui/button'
@@ -9,8 +9,21 @@ import { Input } from '@/components/ui/input'
 import { FieldLabel } from '@/components/FieldLabel'
 import { fieldHelp } from '@/lib/field-help'
 import { ClientLocationMap } from '@/components/ClientLocationMap'
-import { CollectDebtSheet, type DebtCommitment } from '@/components/CollectDebtSheet'
+import { ClientProfileDrawer, type ClientProfile } from '@/components/ClientProfileDrawer'
+import { OrganizationFormFields } from '@/components/OrganizationFormFields'
+import { StatTile } from '@/components/StatTile'
+import { TablePagination } from '@/components/TablePagination'
+import { TopClientsDrawer, type ClientRanking } from '@/components/TopClientsDrawer'
+import { usePagination } from '@/lib/use-pagination'
+import { useOrganizationForm } from '@/lib/use-organization-form'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -31,55 +44,76 @@ import {
 type Client = {
   id: string
   name: string
+  phone: string | null
   credit_limit: number | null
   address: string | null
   latitude: number | null
   longitude: number | null
   active: boolean
+  created_at: string
+  organization_id: string | null
   balance: number
   nextDueDate: string | null
   overdue: boolean
 }
 
+type Organization = { id: string; legal_name: string }
+
 type StatusFilter = 'all' | 'debt' | 'overdue'
 
 export function ClientsPage() {
+  const navigate = useNavigate()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [showInactive, setShowInactive] = useState(false)
+  const [salesRows, setSalesRows] = useState<
+    { client_id: string | null; total: number; discount_amount: number; voided_at: string | null }[]
+  >([])
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [topClientsOpen, setTopClientsOpen] = useState(false)
 
   const [formOpen, setFormOpen] = useState(searchParams.get('new') === '1')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [creditLimit, setCreditLimit] = useState('')
   const [address, setAddress] = useState('')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [organizationId, setOrganizationId] = useState('')
+  const [addingOrg, setAddingOrg] = useState(false)
+  const [creatingOrg, setCreatingOrg] = useState(false)
+  const newOrgForm = useOrganizationForm()
 
-  const [detailClient, setDetailClient] = useState<Client | null>(null)
-  const [detailCommitments, setDetailCommitments] = useState<DebtCommitment[]>([])
-  const [confirmingDeactivate, setConfirmingDeactivate] = useState(false)
-  const [collectTarget, setCollectTarget] = useState<DebtCommitment | null>(null)
+  const [detailClientId, setDetailClientId] = useState<string | null>(null)
 
   async function loadClients() {
     setLoading(true)
     const { data: clientRows, error } = await supabase
       .from('clients')
-      .select('id, name, credit_limit, address, latitude, longitude, active')
+      .select(
+        'id, name, phone, credit_limit, address, latitude, longitude, active, created_at, organization_id',
+      )
     if (error || !clientRows) {
       sileo.error({ title: 'No se pudieron cargar los clientes.' })
       setLoading(false)
       return
     }
 
-    const { data: commitments } = await supabase
-      .from('debt_commitments')
-      .select('client_id, amount, due_date')
-      .eq('status', 'pending')
+    const [{ data: commitments }, { data: sales }, { data: orgs }] = await Promise.all([
+      supabase.from('debt_commitments').select('client_id, amount, due_date').eq('status', 'pending'),
+      supabase
+        .from('sales')
+        .select('client_id, total, discount_amount, voided_at')
+        .not('client_id', 'is', null),
+      supabase.from('client_organizations').select('id, legal_name').order('legal_name'),
+    ])
+    setSalesRows(sales ?? [])
+    setOrganizations(orgs ?? [])
 
     const balanceByClient = new Map<string, number>()
     const nextDueByClient = new Map<string, string>()
@@ -123,6 +157,53 @@ export function ClientsPage() {
       .sort((a, b) => b.balance - a.balance)
   }, [clients, search, statusFilter, showInactive])
 
+  const { page, setPage, totalPages, pageItems: pagedClients } = usePagination(filteredClients)
+
+  const stats = useMemo(() => {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 30)
+    const newCount = clients.filter((c) => new Date(c.created_at) >= cutoff).length
+    const withDebtCount = clients.filter((c) => c.balance > 0.01).length
+    const overdueCount = clients.filter((c) => c.overdue).length
+    const totalPending = clients.reduce((sum, c) => sum + c.balance, 0)
+    const inactiveCount = clients.filter((c) => !c.active).length
+    const overdueRatio = withDebtCount > 0 ? (overdueCount / withDebtCount) * 100 : 0
+    const linkedOrgCount = new Set(clients.map((c) => c.organization_id).filter(Boolean)).size
+
+    const totalsByClient = new Map<string, number>()
+    let purchaseCount = 0
+    let purchaseTotal = 0
+    for (const s of salesRows) {
+      if (s.voided_at || !s.client_id) continue
+      const net = s.total - s.discount_amount
+      totalsByClient.set(s.client_id, (totalsByClient.get(s.client_id) ?? 0) + net)
+      purchaseCount += 1
+      purchaseTotal += net
+    }
+    const avgTicket = purchaseCount > 0 ? purchaseTotal / purchaseCount : 0
+    const ranking: ClientRanking[] = [...totalsByClient.entries()]
+      .map(([clientId, total]) => ({
+        clientId,
+        total,
+        name: clients.find((c) => c.id === clientId)?.name ?? '—',
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+
+    return {
+      activeCount: clients.filter((c) => c.active).length,
+      inactiveCount,
+      newCount,
+      withDebtCount,
+      overdueCount,
+      overdueRatio,
+      totalPending,
+      avgTicket,
+      linkedOrgCount,
+      ranking,
+    }
+  }, [clients, salesRows])
+
   function useMyLocation() {
     if (!navigator.geolocation) {
       sileo.error({ title: 'Este dispositivo no soporta geolocalización.' })
@@ -144,19 +225,51 @@ export function ClientsPage() {
   function openCreateForm() {
     setEditingId(null)
     setName('')
+    setPhone('')
     setCreditLimit('')
     setAddress('')
     setCoords(null)
+    setOrganizationId('')
+    setAddingOrg(false)
+    newOrgForm.reset()
     setFormOpen(true)
   }
 
-  function openEditForm(client: Client) {
+  function openEditForm(client: Client | ClientProfile) {
     setEditingId(client.id)
     setName(client.name)
+    setPhone(client.phone ?? '')
     setCreditLimit(client.credit_limit != null ? String(client.credit_limit) : '')
     setAddress(client.address ?? '')
     setCoords(client.latitude != null && client.longitude != null ? { lat: client.latitude, lng: client.longitude } : null)
+    setOrganizationId(client.organization_id ?? '')
+    setAddingOrg(false)
+    newOrgForm.reset()
     setFormOpen(true)
+  }
+
+  async function createOrganizationInline() {
+    const payload = newOrgForm.toPayload()
+    if (!payload.legal_name.trim()) {
+      sileo.warning({ title: 'Captura la razón social.' })
+      return
+    }
+    setCreatingOrg(true)
+    const { data, error } = await supabase
+      .from('client_organizations')
+      .insert(payload)
+      .select('id, legal_name')
+      .single()
+
+    if (error || !data) {
+      sileo.error({ title: error?.message ?? 'No se pudo crear la empresa.' })
+    } else {
+      setOrganizations((prev) => [...prev, data].sort((a, b) => a.legal_name.localeCompare(b.legal_name)))
+      setOrganizationId(data.id)
+      setAddingOrg(false)
+      newOrgForm.reset()
+    }
+    setCreatingOrg(false)
   }
 
   async function handleSubmitForm(event: FormEvent) {
@@ -165,10 +278,12 @@ export function ClientsPage() {
 
     const payload = {
       name,
+      phone: phone || null,
       credit_limit: creditLimit ? Number(creditLimit) : null,
       address: address || null,
       latitude: coords?.lat ?? null,
       longitude: coords?.lng ?? null,
+      organization_id: organizationId || null,
     }
 
     const { error } = editingId
@@ -185,40 +300,77 @@ export function ClientsPage() {
     setSubmitting(false)
   }
 
-  async function toggleActive(client: Client, active: boolean) {
-    const { error } = await supabase.from('clients').update({ active }).eq('id', client.id)
-    if (error) {
-      sileo.error({ title: error.message })
-    } else {
-      sileo.success({ title: active ? `"${client.name}" reactivado.` : `"${client.name}" desactivado.` })
-      setConfirmingDeactivate(false)
-      setDetailClient(null)
-      loadClients()
-    }
-  }
-
-  async function openDetail(client: Client) {
-    setDetailClient(client)
-    setConfirmingDeactivate(false)
-
-    const { data } = await supabase
-      .from('debt_commitments')
-      .select('id, amount, due_date')
-      .eq('client_id', client.id)
-      .eq('status', 'pending')
-      .order('due_date')
-    setDetailCommitments(data ?? [])
-  }
-
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
+        <h1 className="text-h1">
           Clientes
         </h1>
         <Button onClick={openCreateForm}>
           <Plus /> Nuevo cliente
         </Button>
+      </div>
+
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2">
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile label="Clientes activos" value={stats.activeCount} isCurrency={false} />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile label="Nuevos (30 días)" value={stats.newCount} isCurrency={false} />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Con adeudo"
+            value={stats.withDebtCount}
+            isCurrency={false}
+            onClick={() => setStatusFilter(statusFilter === 'debt' ? 'all' : 'debt')}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile label="Saldo pendiente total" value={stats.totalPending} />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Atrasados"
+            value={stats.overdueCount}
+            isCurrency={false}
+            onClick={() => setStatusFilter(statusFilter === 'overdue' ? 'all' : 'overdue')}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label={stats.ranking[0] ? `Mejor cliente: ${stats.ranking[0].name}` : 'Mejor cliente'}
+            value={stats.ranking[0]?.total ?? 0}
+            onClick={() => setTopClientsOpen(true)}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Inactivos"
+            value={stats.inactiveCount}
+            isCurrency={false}
+            onClick={() => setShowInactive(true)}
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="% Cartera vencida"
+            value={Math.round(stats.overdueRatio)}
+            isCurrency={false}
+            suffix="%"
+          />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile label="Ticket promedio" value={stats.avgTicket} />
+        </div>
+        <div className="w-64 shrink-0 snap-start">
+          <StatTile
+            label="Empresas vinculadas"
+            value={stats.linkedOrgCount}
+            isCurrency={false}
+            onClick={() => navigate('/empresas')}
+          />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -268,12 +420,27 @@ export function ClientsPage() {
               {editingId ? 'Actualiza los datos del cliente.' : 'Se agrega al directorio de la empresa.'}
             </SheetDescription>
           </SheetHeader>
-          <form id="client-form" onSubmit={handleSubmitForm} className="flex flex-col gap-4 px-4">
+          <form
+            id="client-form"
+            onSubmit={handleSubmitForm}
+            className="flex flex-col gap-4 overflow-y-auto px-4"
+          >
             <div className="flex flex-col gap-2">
               <FieldLabel htmlFor="client-name" help={fieldHelp.clients.name}>
                 Nombre
               </FieldLabel>
               <Input id="client-name" required value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="client-phone" help={fieldHelp.clients.phone}>
+                Teléfono
+              </FieldLabel>
+              <Input
+                id="client-phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <FieldLabel htmlFor="credit-limit" help={fieldHelp.clients.creditLimit}>
@@ -312,6 +479,48 @@ export function ClientsPage() {
               </Button>
               {coords && <ClientLocationMap latitude={coords.lat} longitude={coords.lng} />}
             </div>
+            <div className="flex flex-col gap-2">
+              <FieldLabel htmlFor="client-organization" help={fieldHelp.organizations.link}>
+                Empresa
+              </FieldLabel>
+              {addingOrg ? (
+                <div className="flex flex-col gap-4 rounded-lg border border-border p-3">
+                  <OrganizationFormFields form={newOrgForm.fields} idPrefix="new-org" requireLegalName={false} />
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" disabled={creatingOrg} onClick={createOrganizationInline}>
+                      {creatingOrg ? 'Creando…' : 'Crear empresa'}
+                    </Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => setAddingOrg(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Select
+                    value={organizationId || 'none'}
+                    onValueChange={(v) => setOrganizationId(v === 'none' ? '' : (v ?? ''))}
+                  >
+                    <SelectTrigger id="client-organization" className="w-full">
+                      <SelectValue>
+                        {(v: unknown) => organizations.find((o) => o.id === v)?.legal_name ?? 'Sin empresa'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin empresa</SelectItem>
+                      {organizations.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.legal_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="secondary" size="icon" onClick={() => setAddingOrg(true)}>
+                    <Plus />
+                  </Button>
+                </div>
+              )}
+            </div>
           </form>
           <SheetFooter>
             <Button type="submit" form="client-form" disabled={submitting}>
@@ -342,11 +551,11 @@ export function ClientsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClients.map((client) => (
+                {pagedClients.map((client) => (
                   <TableRow
                     key={client.id}
                     className={`cursor-pointer ${!client.active ? 'opacity-50' : ''}`}
-                    onClick={() => openDetail(client)}
+                    onClick={() => setDetailClientId(client.id)}
                   >
                     <TableCell>{client.name}</TableCell>
                     <TableCell className={client.balance > 0 ? 'text-destructive' : ''}>
@@ -387,92 +596,26 @@ export function ClientsPage() {
         </CardContent>
       </Card>
 
-      <Sheet
-        open={!!detailClient}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDetailClient(null)
-            setConfirmingDeactivate(false)
-          }
-        }}
-      >
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>{detailClient?.name}</SheetTitle>
-            <SheetDescription>Saldo pendiente: ${detailClient?.balance.toFixed(2)}</SheetDescription>
-          </SheetHeader>
-          <div className="flex flex-col gap-4 overflow-y-auto px-4">
-            {detailClient?.address && (
-              <p className="text-sm text-muted-foreground">{detailClient.address}</p>
-            )}
-            {detailClient?.latitude != null && detailClient?.longitude != null && (
-              <ClientLocationMap latitude={detailClient.latitude} longitude={detailClient.longitude} />
-            )}
-            {detailCommitments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin deuda pendiente.</p>
-            ) : (
-              detailCommitments.map((commitment) => {
-                const overdue = commitment.due_date && parseLocalDate(commitment.due_date) < new Date()
-                return (
-                  <div
-                    key={commitment.id}
-                    className="flex items-center justify-between border-b border-border pb-2 text-sm"
-                  >
-                    <div>
-                      <p className="font-medium">${commitment.amount.toFixed(2)}</p>
-                      <p className={overdue ? 'text-destructive' : 'text-muted-foreground'}>
-                        {commitment.due_date
-                          ? `Compromiso: ${parseLocalDate(commitment.due_date).toLocaleDateString('es-MX')}${overdue ? ' (atrasado)' : ''}`
-                          : 'Sin fecha de compromiso'}
-                      </p>
-                    </div>
-                    <Button type="button" size="sm" onClick={() => setCollectTarget(commitment)}>
-                      Cobrar
-                    </Button>
-                  </div>
-                )
-              })
-            )}
-          </div>
-          <SheetFooter>
-            {detailClient && (
-              <>
-                {confirmingDeactivate ? (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="destructive"
-                      className="flex-1"
-                      onClick={() => toggleActive(detailClient, false)}
-                    >
-                      Confirmar desactivación
-                    </Button>
-                    <Button variant="secondary" onClick={() => setConfirmingDeactivate(false)}>
-                      Cancelar
-                    </Button>
-                  </div>
-                ) : detailClient.active ? (
-                  <Button variant="destructive" onClick={() => setConfirmingDeactivate(true)}>
-                    <Archive /> Desactivar cliente
-                  </Button>
-                ) : (
-                  <Button variant="secondary" onClick={() => toggleActive(detailClient, true)}>
-                    <ArchiveRestore /> Reactivar cliente
-                  </Button>
-                )}
-              </>
-            )}
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+      <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
-      <CollectDebtSheet
-        open={!!collectTarget}
-        onOpenChange={(open) => !open && setCollectTarget(null)}
-        commitment={collectTarget}
-        clientName={detailClient?.name ?? ''}
-        onCollected={() => {
-          loadClients()
-          if (detailClient) openDetail(detailClient)
+      <ClientProfileDrawer
+        clientId={detailClientId}
+        open={!!detailClientId}
+        onOpenChange={(open) => !open && setDetailClientId(null)}
+        onEdit={(client) => {
+          setDetailClientId(null)
+          openEditForm(client)
+        }}
+        onChanged={loadClients}
+      />
+
+      <TopClientsDrawer
+        open={topClientsOpen}
+        onOpenChange={setTopClientsOpen}
+        ranking={stats.ranking}
+        onSelectClient={(clientId) => {
+          setTopClientsOpen(false)
+          setDetailClientId(clientId)
         }}
       />
     </div>

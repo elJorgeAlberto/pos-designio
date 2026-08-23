@@ -3,11 +3,14 @@ import { sileo } from 'sileo'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useBranchContext } from '@/lib/use-branch-context'
+import { usePaymentMethods } from '@/lib/use-payment-methods'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FieldLabel } from '@/components/FieldLabel'
 import { fieldHelp } from '@/lib/field-help'
+import { TablePagination } from '@/components/TablePagination'
+import { usePagination } from '@/lib/use-pagination'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Select,
@@ -35,14 +38,13 @@ import {
 
 type Supplier = { id: string; name: string; phone: string | null; notes: string | null; balance: number }
 type PurchaseRow = { id: string; total: number; created_at: string }
-type PaymentRow = { id: string; amount: number; method: string; created_at: string }
+type PaymentRow = { id: string; amount: number; methodLabel: string; created_at: string }
 type Product = { id: string; name: string; unit: string; cost: number }
 type PurchaseLine = { id: string; productId: string; quantity: string; unitCost: string }
 
-const methodLabel: Record<string, string> = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' }
-
 export function SuppliersPage() {
   const { branchId, cashRegisterId } = useBranchContext()
+  const { methods: paymentMethods } = usePaymentMethods()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,7 +61,8 @@ export function SuppliersPage() {
   const [purchases, setPurchases] = useState<PurchaseRow[]>([])
   const [payments, setPayments] = useState<PaymentRow[]>([])
   const [paymentAmount, setPaymentAmount] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer'>('cash')
+  const [paymentMethodId, setPaymentMethodId] = useState('')
+  const selectedPaymentMethod = paymentMethods.find((m) => m.id === paymentMethodId)
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [lines, setLines] = useState<PurchaseLine[]>([])
@@ -139,7 +142,7 @@ export function SuppliersPage() {
   async function openDetail(supplier: Supplier) {
     setDetailSupplier(supplier)
     setPaymentAmount('')
-    setPaymentMethod('cash')
+    setPaymentMethodId(paymentMethods.find((m) => m.key === 'cash')?.id ?? paymentMethods[0]?.id ?? '')
 
     const { data: purchaseRows } = await supabase
       .from('purchases')
@@ -150,15 +153,20 @@ export function SuppliersPage() {
 
     const { data: paymentRows } = await supabase
       .from('supplier_payments')
-      .select('id, amount, method, created_at')
+      .select('id, amount, created_at, payment_method:payment_methods(label)')
       .eq('supplier_id', supplier.id)
       .order('created_at', { ascending: false })
-    setPayments(paymentRows ?? [])
+    setPayments(
+      (paymentRows ?? []).map((p) => {
+        const paymentMethod = Array.isArray(p.payment_method) ? p.payment_method[0] : p.payment_method
+        return { id: p.id, amount: p.amount, created_at: p.created_at, methodLabel: paymentMethod?.label ?? '—' }
+      }),
+    )
   }
 
   async function registerPayment() {
     if (!detailSupplier || !paymentAmount) return
-    if (paymentMethod === 'cash' && !sessionId) {
+    if (selectedPaymentMethod?.is_cash && !sessionId) {
       sileo.warning({ title: 'Abre la caja antes de pagar en efectivo.' })
       return
     }
@@ -167,8 +175,8 @@ export function SuppliersPage() {
     const { error } = await supabase.from('supplier_payments').insert({
       supplier_id: detailSupplier.id,
       amount: Number(paymentAmount) || 0,
-      method: paymentMethod,
-      cash_register_session_id: paymentMethod === 'cash' ? sessionId : null,
+      payment_method_id: paymentMethodId,
+      cash_register_session_id: selectedPaymentMethod?.is_cash ? sessionId : null,
     })
 
     if (error) {
@@ -248,10 +256,12 @@ export function SuppliersPage() {
     setSubmitting(false)
   }
 
+  const { page, setPage, totalPages, pageItems: pagedSuppliers } = usePagination(suppliers)
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 style={{ fontFamily: 'var(--font-heading)' }} className="text-2xl font-semibold">
+        <h1 className="text-h1">
           Proveedores
         </h1>
         <Button onClick={openCreateForm}>
@@ -312,7 +322,7 @@ export function SuppliersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {suppliers.map((s) => (
+                {pagedSuppliers.map((s) => (
                   <TableRow key={s.id} className="cursor-pointer" onClick={() => openDetail(s)}>
                     <TableCell>{s.name}</TableCell>
                     <TableCell>{s.phone ?? '—'}</TableCell>
@@ -326,6 +336,8 @@ export function SuppliersPage() {
           )}
         </CardContent>
       </Card>
+
+      <TablePagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       <Sheet open={!!detailSupplier} onOpenChange={(open) => !open && setDetailSupplier(null)}>
         <SheetContent>
@@ -357,23 +369,27 @@ export function SuppliersPage() {
                 value={paymentAmount}
                 onChange={(e) => setPaymentAmount(e.target.value)}
               />
-              <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'card' | 'transfer')}>
+              <Select value={paymentMethodId} onValueChange={(v) => setPaymentMethodId(v ?? '')}>
                 <SelectTrigger className="w-full">
-                  <SelectValue>{(v: unknown) => methodLabel[v as string]}</SelectValue>
+                  <SelectValue>
+                    {(v: unknown) => paymentMethods.find((m) => m.id === v)?.label ?? 'Selecciona un medio'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cash">Efectivo</SelectItem>
-                  <SelectItem value="card">Tarjeta</SelectItem>
-                  <SelectItem value="transfer">Transferencia</SelectItem>
+                  {paymentMethods.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              {paymentMethod === 'cash' && !sessionId && (
+              {selectedPaymentMethod?.is_cash && !sessionId && (
                 <p className="text-xs text-destructive">La caja está cerrada — ábrela antes de pagar en efectivo.</p>
               )}
               <Button
                 type="button"
                 onClick={registerPayment}
-                disabled={submitting || !paymentAmount || (paymentMethod === 'cash' && !sessionId)}
+                disabled={submitting || !paymentAmount || !!(selectedPaymentMethod?.is_cash && !sessionId)}
               >
                 Registrar pago
               </Button>
@@ -401,7 +417,7 @@ export function SuppliersPage() {
                 payments.map((p) => (
                   <div key={p.id} className="flex justify-between text-sm text-success">
                     <span>
-                      {new Date(p.created_at).toLocaleDateString('es-MX')} · {methodLabel[p.method] ?? p.method}
+                      {new Date(p.created_at).toLocaleDateString('es-MX')} · {p.methodLabel}
                     </span>
                     <span>${p.amount.toFixed(2)}</span>
                   </div>

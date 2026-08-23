@@ -5,6 +5,16 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -19,14 +29,10 @@ export type SaleDetailRow = {
   discount: number
   cost: number
   clientName: string | null
+  // Already-resolved payment method labels (the caller joins
+  // payment_methods to get these — this component doesn't look up
+  // codes, since custom tenant-created methods have no static mapping).
   methods: string[]
-}
-
-const methodLabel: Record<string, string> = {
-  cash: 'Efectivo',
-  card: 'Tarjeta',
-  transfer: 'Transferencia',
-  credit: 'Crédito',
 }
 
 export function SalesDetailDrawer({
@@ -65,7 +71,8 @@ export function SalesDetailDrawer({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
         <SheetHeader>
           <SheetTitle>{title}</SheetTitle>
@@ -103,43 +110,42 @@ export function SalesDetailDrawer({
                     <div className="flex items-baseline justify-between text-xs text-muted-foreground">
                       <span>
                         {sale.clientName ?? 'Sin cliente'} ·{' '}
-                        {sale.methods.map((m) => methodLabel[m] ?? m).join(' + ')}
+                        {sale.methods.join(' + ')}
                         {sale.discount > 0 && ` · Descuento $${sale.discount.toFixed(2)}`}
                       </span>
                       <span className={profit >= 0 ? 'text-success' : 'text-destructive'}>
                         Utilidad ${profit.toFixed(2)}
                       </span>
                     </div>
-                    {pendingVoidId === sale.id && (
-                      <div className="flex items-center justify-between gap-2 rounded-lg bg-destructive/10 p-2 text-xs">
-                        <span>¿Cancelar esta venta? El stock se repone.</span>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            disabled={voiding}
-                            onClick={() => confirmVoid(sale.id)}
-                          >
-                            Confirmar
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => setPendingVoidId(null)}
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )
               })
           )}
         </div>
       </SheetContent>
-    </Sheet>
+      </Sheet>
+
+      <AlertDialog
+        open={pendingVoidId != null}
+        onOpenChange={(o) => !o && setPendingVoidId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cancelar esta venta?</AlertDialogTitle>
+            <AlertDialogDescription>El stock de los productos vendidos se repone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={voiding}
+              onClick={() => pendingVoidId && confirmVoid(pendingVoidId)}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

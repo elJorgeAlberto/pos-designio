@@ -38,6 +38,7 @@ export const fieldHelp = {
   },
   clients: {
     name: 'El nombre con el que vas a identificar a este cliente.',
+    phone: 'Opcional. Para contactarlo por llamada o WhatsApp.',
     creditLimit: 'Opcional. El máximo que le vas a dejar deber a este cliente al mismo tiempo — solo de referencia, no bloquea la venta todavía.',
     address: 'La dirección tal como te la da el cliente — es independiente del pin del mapa, escríbela aunque ya hayas capturado la ubicación.',
     location: 'Usa el botón para guardar la ubicación exacta desde donde estás parado (ideal: en el domicilio del cliente).',
@@ -45,7 +46,30 @@ export const fieldHelp = {
   collections: {
     sale: 'A cuál venta a crédito de este cliente le estás aplicando el pago.',
     amount: 'Cuánto está pagando el cliente ahora — puede ser un abono parcial, no hace falta que liquide todo.',
+    paymentMethod: 'Cómo te está pagando este abono.',
     newDueDate: 'La nueva fecha en la que el cliente se compromete a pagar lo que quedó pendiente.',
+  },
+  organizations: {
+    legalName: 'La razón social tal como aparece en su constancia fiscal — se usa para facturar.',
+    tradeName: 'Opcional. El nombre con el que se le conoce en el día a día, si es distinto de la razón social.',
+    taxId: 'Opcional. El RFC de la empresa, necesario para poder facturarle.',
+    taxRegime: 'Opcional. Su régimen fiscal — lo pide su constancia de situación fiscal. Necesario junto al RFC para timbrar la factura (CFDI 4.0).',
+    postalCode: 'Opcional. El código postal de su domicilio fiscal — también lo exige la factura electrónica, y debe coincidir con el registrado ante el SAT.',
+    address: 'Opcional. El domicilio fiscal o el que uses para correspondencia.',
+    phone: 'Opcional. Un teléfono de contacto general de la empresa.',
+    email: 'Opcional. El correo al que se le mandaría una factura.',
+    contactName: 'Opcional. A quién buscar en esta empresa — quien recibe el pedido o autoriza el crédito.',
+    notes: 'Opcional. Condiciones especiales, quién autoriza compras, lo que te sea útil recordar.',
+    link: 'Opcional. Si este cliente pertenece a una empresa (para facturar o para agrupar varios contactos de un mismo negocio), selecciónala o crea una nueva aquí mismo.',
+  },
+  paymentMethods: {
+    label: 'El nombre con el que va a aparecer al elegir cómo se cobró o se pagó algo.',
+    countsAsCash: 'Actívalo si este medio debe sumarse al efectivo esperado del corte de caja — por ejemplo, vales que cambias por dinero en el día.',
+  },
+  legacyDebt: {
+    amount: 'Cuánto te debía este cliente antes de empezar a usar el sistema.',
+    dueDate: 'Opcional. Cuándo se comprometió a pagarlo.',
+    note: 'De qué es esta deuda, para que quede claro de dónde salió cuando la veas después.',
   },
   salesClient: {
     client: 'Opcional. Solo hace falta si vas a cobrar una parte de esta venta a crédito.',
